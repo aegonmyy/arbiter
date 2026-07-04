@@ -9,6 +9,27 @@ Newest entries at the top.
 
 ---
 
+## Difficulty routing: only hard prompts get a sub-bucket (backward-compatible)
+
+**Decision.** Per-prompt difficulty routing splits each task into `easy`/`hard`,
+but **only hard prompts get a new policy key** (`code:hard`); easy prompts keep
+using the base task bucket (`code`).
+
+**Why.** Making the key always `task:difficulty` would strand all the learning
+the live instance already has under `code`/`math`/... and double the exploration
+(and baseline sampling) cost. Sub-bucketing only the hard tail preserves the
+common-case learning and adds granularity exactly where task type is too coarse.
+Side effect: the policy snapshot / "task types learned" count now shows entries
+like `code:hard`. That's intentional and demoable, not a bug.
+
+**Confidence cascade caveat (minor).** When the cascade escalates and the
+stronger answer turns out *not* to be better, we keep the original answer but
+have already paid for the probe call; that probe's cost isn't attributed to the
+request. It's zero for free models and negligible otherwise. Flagging in case you
+want strict spend accounting later.
+
+---
+
 ## Deployment: holding the live deploy until you review (NEEDS YOU: just a yes)
 
 **Decision.** I am landing every change as local git commits with a green test

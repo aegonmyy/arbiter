@@ -13,9 +13,11 @@ from .auth import require_client
 from .btl import BTLClient, Cost
 from .classify import _last_user_text
 from .classifier import classify_smart
+from .difficulty import route_key as difficulty_key
 from .judge import judge
 from .models import BASELINE, CANDIDATES, estimate_cost, fits
 from .policy import ALL_MODELS, Policy
+from .priors import prior_quality
 from .scoring import Score, score
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -24,6 +26,26 @@ QUARANTINE_SECONDS = 300
 # How many models to try within a single request before giving up. The first is
 # the routed choice; the rest are failover to the next-best live model.
 MAX_ATTEMPTS = 3
+# Confidence cascade: if an objective check scores the cheap answer below this,
+# escalate once to a stronger model within the same request.
+CASCADE_MIN = 0.5
+
+
+def _cost_tokens(state, completion) -> tuple[float, int]:
+    """Measured charge (scaled by any demo multiplier) and token count."""
+    raw = completion.cost.charged or 0.0
+    cost = raw * state.price_mult.get(completion.model, 1.0)
+    tokens = (completion.body.get("usage") or {}).get("total_tokens", 0)
+    return cost, tokens
+
+
+def _stronger_alt(state, route_key, task, eligible, exclude):
+    """The strongest live eligible model (by benchmark prior for this task) that
+    we haven't tried yet, for a confidence-cascade escalation. None if none is
+    clearly stronger."""
+    live = _live(state, eligible, exclude=exclude)
+    ranked = sorted(live, key=lambda m: prior_quality(task.value, m) or 0.0, reverse=True)
+    return ranked[0] if ranked else None
 
 
 def _quarantine(state, model: str) -> None:
@@ -130,6 +152,12 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     task, classified_by = await classify_smart(request.app.state.btl, messages)
     policy.bump_counter(classified_by)
 
+    # Route by how hard this specific prompt is, not just its coarse task type.
+    # Hard prompts learn in their own sub-bucket; easy prompts reuse the base task.
+    prompt = _last_user_text(messages)
+    route_key = difficulty_key(task, prompt)
+    difficulty = "hard" if route_key.endswith(":hard") else "easy"
+
     # Capability guard: only consider models whose context window fits this
     # prompt (rough 4-chars-per-token estimate plus the requested reply room).
     chars = sum(len(str(m.get("content", ""))) for m in messages)
@@ -165,14 +193,12 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         except (TypeError, ValueError):
             max_latency = None
     if max_latency is not None and eligible:
-        fast = [m for m in eligible if (policy.latency_of(task.value, m) or 0.0) <= max_latency]
+        fast = [m for m in eligible if (policy.latency_of(route_key, m) or 0.0) <= max_latency]
         latency_capped = len(fast) < len(eligible)
         eligible = fast or eligible  # if none qualify, keep all rather than fail
 
-    prompt = _last_user_text(messages)
-
     if payload.get("stream"):
-        return _stream(request, payload, task, classified_by, eligible, prompt)
+        return _stream(request, payload, task, route_key, classified_by, eligible, prompt)
 
     # Route with in-request failover. The client's model field is ignored on
     # purpose - choosing the model is the whole point. If the routed model errors
@@ -186,7 +212,7 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     last_status, last_detail = 502, "no eligible model"
     for _ in range(MAX_ATTEMPTS):
         pool = _live(state, eligible, exclude=set(tried))
-        decision = policy.choose(task.value, allowed=pool)
+        decision = policy.choose(route_key, allowed=pool)
         payload["model"] = decision.model
         t0 = time.monotonic()
         try:
@@ -223,21 +249,46 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
             q = await judge(request.app.state.btl, prompt, completion.text)
             quality = Score(q, "judged by model", objective=False)
         else:
-            learned = policy.quality_of(task.value, decision.model)
+            learned = policy.quality_of(route_key, decision.model)
             if learned is not None:
                 quality = Score(learned, "learned quality", objective=False)
 
-    # Real charge from the runtime, optionally scaled by the demo multiplier so
-    # a price change can be simulated on cue.
-    raw_cost = completion.cost.charged or 0.0
-    cost = raw_cost * request.app.state.price_mult.get(decision.model, 1.0)
-    tokens = (completion.body.get("usage") or {}).get("total_tokens", 0)
+    cost, tokens = _cost_tokens(state, completion)
 
-    shift = policy.record(task.value, decision.model, quality.value, cost, tokens, latency)
+    # Confidence cascade: when an objective check says the cheap answer clearly
+    # failed, escalate once to a stronger model in the same request. We record the
+    # weak attempt too, so the policy learns it, then keep whichever answer scored
+    # better. Only fires on objective tasks, where a low score is trustworthy.
+    cascaded_from = None
+    if quality.objective and quality.value < CASCADE_MIN:
+        target = _stronger_alt(state, route_key, task, eligible,
+                               exclude=set(tried) | {decision.model})
+        if target and (prior_quality(task.value, target) or 0.0) > (prior_quality(task.value, decision.model) or 0.0):
+            payload["model"] = target
+            t1 = time.monotonic()
+            try:
+                alt = await state.btl.chat(payload)
+                alt_latency = time.monotonic() - t1
+                state.quarantine.pop(target, None)
+                alt_quality = score(task, prompt, alt.text)
+                if alt_quality.value > quality.value:
+                    # Record the weak first attempt before switching away from it.
+                    weak_shift = policy.record(route_key, decision.model, quality.value, cost, tokens, latency)
+                    if weak_shift:
+                        policy.add_alert({**weak_shift, "ts": time.time()})
+                    cascaded_from = decision.model
+                    decision.model, decision.mode = target, "escalate"
+                    decision.reason = f"confidence cascade: cheap answer scored {quality.value:.2f}"
+                    completion, quality, latency = alt, alt_quality, alt_latency
+                    cost, tokens = _cost_tokens(state, alt)
+            except (httpx.HTTPStatusError, httpx.RequestError):
+                _quarantine(state, target)  # cascade is best-effort; keep the original
+
+    shift = policy.record(route_key, decision.model, quality.value, cost, tokens, latency)
     if shift:
         policy.add_alert({**shift, "ts": time.time()})
 
-    baseline_cost = policy.baseline_cost(task.value)
+    baseline_cost = policy.baseline_cost(route_key)
     saved = round(baseline_cost - cost, 8) if baseline_cost is not None else None
 
     policy.add_event({
@@ -255,6 +306,8 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     body = completion.body
     body["arbiter"] = {
         "task": task.value,
+        "difficulty": difficulty,
+        "cascaded_from": cascaded_from,
         "classified_by": classified_by,
         "model": decision.model,
         "mode": decision.mode,
@@ -277,7 +330,7 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     return body
 
 
-def _stream(request: Request, payload, task, classified_by, eligible, prompt):
+def _stream(request: Request, payload, task, route_key, classified_by, eligible, prompt):
     """Proxy a streaming completion. Tokens flow to the client live; the answer
     is scored and folded into the policy once the stream finishes.
 
@@ -294,7 +347,7 @@ def _stream(request: Request, payload, task, classified_by, eligible, prompt):
         tried: list[str] = []
         for _ in range(MAX_ATTEMPTS):
             pool = _live(app_state, eligible, exclude=set(tried))
-            decision = policy.choose(task.value, allowed=pool)
+            decision = policy.choose(route_key, allowed=pool)
             payload["model"] = decision.model
             full: list[str] = []
             usage_tokens = 0
@@ -342,7 +395,7 @@ def _stream(request: Request, payload, task, classified_by, eligible, prompt):
                     q = await judge(btl, prompt, text)
                     quality = Score(q, "judged by model", objective=False)
                 else:
-                    learned = policy.quality_of(task.value, decision.model)
+                    learned = policy.quality_of(route_key, decision.model)
                     if learned is not None:
                         quality = Score(learned, "learned quality", objective=False)
 
@@ -350,13 +403,13 @@ def _stream(request: Request, payload, task, classified_by, eligible, prompt):
             # header is absent we price the call at the model's learned average cost
             # (measured from non-streaming calls) and skip price-shift detection.
             estimated = cost.charged is None
-            base = policy.cost_of(task.value, decision.model) or 0.0 if estimated else cost.charged
+            base = policy.cost_of(route_key, decision.model) or 0.0 if estimated else cost.charged
             c = (base or 0.0) * app_state.price_mult.get(decision.model, 1.0)
-            shift = policy.record(task.value, decision.model, quality.value, c,
+            shift = policy.record(route_key, decision.model, quality.value, c,
                                   0 if estimated else usage_tokens)
             if shift:
                 policy.add_alert({**shift, "ts": time.time()})
-            baseline_cost = policy.baseline_cost(task.value)
+            baseline_cost = policy.baseline_cost(route_key)
             saved = round(baseline_cost - c, 8) if baseline_cost is not None else None
             policy.add_event({
                 "ts": time.time(), "task": task.value, "classified_by": classified_by,
@@ -366,6 +419,7 @@ def _stream(request: Request, payload, task, classified_by, eligible, prompt):
             })
             # Trailing metadata event; strict OpenAI clients stop at [DONE] and ignore it.
             meta = {"task": task.value, "model": decision.model, "mode": decision.mode,
+                    "difficulty": "hard" if route_key.endswith(":hard") else "easy",
                     "classified_by": classified_by, "quality": round(quality.value, 3),
                     "cost": c, "cost_estimated": estimated, "saved": saved,
                     "failover_from": tried or None}
