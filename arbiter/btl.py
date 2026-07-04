@@ -79,6 +79,12 @@ class BTLClient:
             model=payload.get("model", ""),
         )
 
+    async def models(self) -> dict:
+        """The runtime's full model catalog (ids, endpoints, pricing)."""
+        resp = await self._client.get("/models")
+        resp.raise_for_status()
+        return resp.json()
+
     def stream(self, payload: dict[str, Any]):
         """Open a streaming chat completion. Returns an httpx streaming context
         manager; the caller reads the SSE body and the cost headers off it."""

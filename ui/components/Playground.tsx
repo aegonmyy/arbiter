@@ -71,7 +71,9 @@ export default function Playground() {
   const models = (pricing ?? [])
     .map((m) => ({ ...m, est: (inTokens * m.in_price + OUT_TOKENS * m.out_price) / 1_000_000 }))
     .sort((a, b) => a.est - b.est);
-  const eligible = models.filter((m) => m.est <= budget).length;
+  const fitting = models.filter((m) => m.est <= budget);
+  const routableFit = fitting.filter((m) => m.routable).length;
+  const shown = fitting.slice(0, 40);
 
   async function run() {
     if (!prompt.trim() || loading) return;
@@ -127,25 +129,30 @@ export default function Playground() {
               onChange={(e) => setBudgetT(Number(e.target.value))}
               aria-label="Max cost per request"
               className="w-full accent-[var(--primary)]" />
-            <div className="space-y-1">
-              {models.map((m) => {
-                const ok = m.est <= budget;
-                return (
-                  <div key={m.id} className={cn(
-                    "flex items-center justify-between rounded-lg border px-2.5 py-1 text-[0.72rem] transition-opacity",
-                    ok ? "border-secondary/40 bg-secondary/5" : "border-border opacity-40")}>
-                    <span className="flex items-center gap-2 truncate font-mono">
-                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", ok ? "bg-secondary" : "bg-border")} />
-                      {m.id}{m.baseline ? " (baseline)" : ""}
-                    </span>
+            <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+              {shown.map((m) => (
+                <div key={m.id} className={cn(
+                  "flex items-center justify-between rounded-lg border px-2.5 py-1 text-[0.72rem]",
+                  m.routable ? "border-secondary/40 bg-secondary/5" : "border-border")}>
+                  <span className="flex items-center gap-2 truncate font-mono">
+                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.routable ? "bg-secondary" : "bg-muted-foreground/40")} />
+                    {m.id}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {m.routable && <span className="rounded bg-secondary/15 px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-wide text-secondary">routes here</span>}
                     <span className="tabular-nums text-muted-foreground">{money(m.est, 6)}</span>
-                  </div>
-                );
-              })}
+                  </span>
+                </div>
+              ))}
+              {fitting.length > shown.length && (
+                <p className="px-1 pt-1 text-[11px] text-muted-foreground">and {fitting.length - shown.length} more...</p>
+              )}
               {!models.length && <div className="h-8 rounded-lg bg-muted shimmer" />}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              {models.length ? `${eligible} of ${models.length} models fit this budget for the current prompt.` : "Loading prices..."}
+              {models.length
+                ? `${fitting.length} of ${models.length} runtime models fit this budget. Arbiter routes among the ${routableFit} it curates.`
+                : "Loading prices..."}
             </p>
           </div>
           <button onClick={run} disabled={loading || !prompt.trim()}

@@ -296,19 +296,40 @@ async def recent(request: Request) -> list:
 
 
 @app.get("/v1/pricing")
-async def pricing() -> list:
-    """List prices for the candidate models, so a client can preview which
-    models fit a budget. Read-only, open."""
-    rows = [
-        {"id": m.id, "tier": m.tier, "context": m.context,
-         "in_price": m.in_price, "out_price": m.out_price, "baseline": False}
-        for m in CANDIDATES
-    ]
-    rows.append({
-        "id": BASELINE.id, "tier": BASELINE.tier, "context": BASELINE.context,
-        "in_price": BASELINE.in_price, "out_price": BASELINE.out_price, "baseline": True,
-    })
-    return rows
+async def pricing(request: Request) -> list:
+    """The runtime's full chat-surface catalog with list prices, each tagged
+    whether Arbiter routes to it. Lets a client preview the whole market at a
+    budget while routing stays within the curated pool. Cached after first call."""
+    st = request.app.state
+    if getattr(st, "catalog", None):
+        return st.catalog
+
+    routable = {m.id for m in CANDIDATES} | {BASELINE.id}
+    catalog: list[dict] = []
+    try:
+        data = await st.btl.models()
+        for m in data.get("data", []):
+            if "/v1/chat/completions" not in (m.get("compatible_endpoints") or []):
+                continue
+            bp = m.get("benchmark_pricing") or {}
+            i, o = bp.get("input_per_mtok_min"), bp.get("output_per_mtok_min")
+            if i is None or o is None:
+                continue
+            catalog.append({
+                "id": m["id"], "in_price": i, "out_price": o,
+                "context": m.get("context_window", 0), "routable": m["id"] in routable,
+            })
+    except Exception:
+        pass
+
+    if not catalog:  # runtime unreachable: fall back to the routable pool
+        for m in list(CANDIDATES) + [BASELINE]:
+            catalog.append({"id": m.id, "in_price": m.in_price, "out_price": m.out_price,
+                            "context": m.context, "routable": True})
+
+    catalog.sort(key=lambda r: r["in_price"] + r["out_price"])
+    st.catalog = catalog
+    return catalog
 
 
 @app.get("/v1/overview")

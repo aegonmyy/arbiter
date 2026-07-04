@@ -14,7 +14,7 @@ served by `main.py`. Examples assume the default `http://localhost:8000`.
 | `GET /v1/policy` | What the router has learned per task type. |
 | `GET /v1/recent` | The most recent routing decisions (newest first). |
 | `GET /v1/overview` | Summary stats: pool size, classifier split, alert count. |
-| `GET /v1/pricing` | List prices for the candidate models (for budget previews). |
+| `GET /v1/pricing` | The runtime's chat-surface catalog with list prices, each tagged `routable`. |
 | `GET /v1/alerts` | Recent price-shift events. |
 | `POST /v1/simulate-price` | Demo hook: scale a model's cost to imitate a re-price. |
 | `POST /v1/reset` | Clear learned state and feeds for a fresh run. |

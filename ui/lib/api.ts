@@ -49,11 +49,10 @@ const opts = { refreshInterval: 1500, keepPreviousData: true };
 
 export interface PricingModel {
   id: string;
-  tier: string;
   context: number;
   in_price: number;
   out_price: number;
-  baseline: boolean;
+  routable: boolean;
 }
 
 export const usePricing = () => useSWR<PricingModel[]>("/v1/pricing", fetcher, { revalidateOnFocus: false });
