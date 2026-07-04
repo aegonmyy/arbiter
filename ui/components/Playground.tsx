@@ -25,13 +25,26 @@ const EXAMPLES: { label: string; prompt: string }[] = [
   { label: "Open", prompt: "Write two sentences about the sound of rain." },
 ];
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">{label}</span>
       <span className="text-sm font-medium">{children}</span>
+      <span className="text-[10px] leading-tight text-muted-foreground/80">{hint}</span>
     </div>
   );
+}
+
+function summarize(r: Result): string {
+  const how = r.classified_by === "rules" ? "by fast rules" : "by a free model";
+  const learned = r.mode === "exploit"
+    ? "used the cheapest model it has learned is good enough"
+    : "is still exploring, so it tried a model to learn about it";
+  const savings = r.saved != null && r.saved > 0
+    ? ` That's ${money(r.saved)} cheaper than sending it to the premium baseline.`
+    : "";
+  return `Arbiter read this as a ${r.task} task (${how}) and ${learned}: ${r.model}. `
+    + `The answer scored ${r.quality?.toFixed(2)} out of 1 and cost ${money(r.cost)}.${savings}`;
 }
 
 export default function Playground() {
@@ -104,13 +117,19 @@ export default function Playground() {
           )}
           {!loading && result && (
             <div className="space-y-4">
+              <p className="rounded-2xl border border-border bg-background px-4 py-3 text-sm leading-relaxed text-foreground/80">
+                {summarize(result)}
+              </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <Field label="Task"><span className="capitalize">{result.task}</span> <span className="text-muted-foreground">· {result.classified_by}</span></Field>
-                <Field label="Mode"><span className={cn(result.mode === "exploit" ? "text-secondary" : "text-primary")}>{result.mode}</span></Field>
-                <Field label="Quality">{result.quality?.toFixed(2)}</Field>
-                <Field label="Cost">{money(result.cost)}</Field>
-                <Field label="Saved">{result.saved != null && result.saved > 0 ? <span className="text-secondary">−{money(result.saved)}</span> : "—"}</Field>
-                <Field label="Eligible">{result.eligible_models} models</Field>
+                <Field label="Task" hint="what kind of request, and how it was detected">
+                  <span className="capitalize">{result.task}</span> <span className="text-muted-foreground">· {result.classified_by}</span></Field>
+                <Field label="Mode" hint="explore = still learning · exploit = using what it learned">
+                  <span className={cn(result.mode === "exploit" ? "text-secondary" : "text-primary")}>{result.mode}</span></Field>
+                <Field label="Quality" hint="0–1 score of the answer">{result.quality?.toFixed(2)}</Field>
+                <Field label="Cost" hint="what this call actually cost">{money(result.cost)}</Field>
+                <Field label="Saved" hint="vs the premium baseline (gpt-4o)">
+                  {result.saved != null && result.saved > 0 ? <span className="text-secondary">−{money(result.saved)}</span> : "—"}</Field>
+                <Field label="Eligible" hint="models whose context fit this prompt">{result.eligible_models} models</Field>
               </div>
               <div>
                 <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">Routed to</span>
