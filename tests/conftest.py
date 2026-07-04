@@ -34,9 +34,11 @@ class FakeBTL:
         self.responder = responder or (lambda payload: make_completion(model=payload["model"]))
         self.models_data = models_data or {"data": []}
         self.calls: list[str] = []
+        self.payloads: list[dict] = []
 
     async def chat(self, payload):
         self.calls.append(payload["model"])
+        self.payloads.append(dict(payload))
         return self.responder(payload)
 
     async def models(self):

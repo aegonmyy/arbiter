@@ -69,6 +69,11 @@ class Policy:
             self._db.execute("ALTER TABLE stats ADD COLUMN tok_sum REAL NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration for latency tracking (seconds, summed for a per-model mean).
+        try:
+            self._db.execute("ALTER TABLE stats ADD COLUMN lat_sum REAL NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Client API keys minted at signup.
         self._db.execute(
             """CREATE TABLE IF NOT EXISTS keys (
@@ -194,6 +199,16 @@ class Policy:
         n, _, mean_cost = self._mean(task, model)
         return mean_cost if n else None
 
+    def latency_of(self, task: str, model: str) -> float | None:
+        """Mean measured latency (seconds) for this model on this task, or None
+        if we have no timing yet."""
+        r = self._db.execute(
+            "SELECT n, lat_sum FROM stats WHERE task=? AND model=?", (task, model)
+        ).fetchone()
+        if not r or not r[0] or not r[1]:
+            return None
+        return r[1] / r[0]
+
     def _blended_quality(self, task: str, model: str) -> float | None:
         """Quality estimate used for routing: the measured mean blended with the
         public-benchmark prior via pseudo-counts, so the prior anchors early,
@@ -249,7 +264,7 @@ class Policy:
 
     # -- update ------------------------------------------------------------
     def record(self, task: str, model: str, quality: float, cost: float,
-               tokens: float = 0) -> dict | None:
+               tokens: float = 0, latency: float = 0) -> dict | None:
         """Fold one observation into the model's stats for this task.
 
         We watch the model's unit price (cost per token). If it moves more than
@@ -280,19 +295,20 @@ class Policy:
             if shift:
                 self._db.execute("DELETE FROM stats WHERE task=? AND model=?", (task, model))
                 self._db.execute(
-                    "INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum) VALUES (?, ?, 1, ?, ?, ?)",
-                    (task, model, quality, cost, tokens),
+                    "INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum, lat_sum) VALUES (?, ?, 1, ?, ?, ?, ?)",
+                    (task, model, quality, cost, tokens, latency),
                 )
             else:
                 self._db.execute(
-                    """INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum)
-                       VALUES (?, ?, 1, ?, ?, ?)
+                    """INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum, lat_sum)
+                       VALUES (?, ?, 1, ?, ?, ?, ?)
                        ON CONFLICT(task, model) DO UPDATE SET
                            n = n + 1,
                            q_sum = q_sum + excluded.q_sum,
                            cost_sum = cost_sum + excluded.cost_sum,
-                           tok_sum = tok_sum + excluded.tok_sum""",
-                    (task, model, quality, cost, tokens),
+                           tok_sum = tok_sum + excluded.tok_sum,
+                           lat_sum = lat_sum + excluded.lat_sum""",
+                    (task, model, quality, cost, tokens, latency),
                 )
             self._db.commit()
             return shift
@@ -340,14 +356,15 @@ class Policy:
 
     def snapshot(self) -> dict:
         cur = self._db.execute(
-            "SELECT task, model, n, q_sum, cost_sum FROM stats ORDER BY task, model"
+            "SELECT task, model, n, q_sum, cost_sum, lat_sum FROM stats ORDER BY task, model"
         )
         tasks: dict[str, list[dict]] = {}
-        for task, model, n, q_sum, cost_sum in cur.fetchall():
+        for task, model, n, q_sum, cost_sum, lat_sum in cur.fetchall():
             tasks.setdefault(task, []).append({
                 "model": model,
                 "n": n,
                 "quality": round(q_sum / n, 3) if n else None,
                 "avg_cost": round(cost_sum / n, 8) if n else None,
+                "avg_latency_ms": round(lat_sum / n * 1000) if n and lat_sum else None,
             })
         return tasks

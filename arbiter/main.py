@@ -159,6 +159,21 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         # If nothing fits the budget, fall back to the single cheapest estimate.
         eligible = within or [min(eligible, key=lambda m: estimate_cost(m, in_tokens, out_tokens))]
 
+    # Optional per-request latency ceiling (seconds) for interactive paths. Keep
+    # only models whose learned mean latency is under it; models we haven't timed
+    # yet pass, since we can't rule them out. Non-standard field: pop it too.
+    max_latency = payload.pop("arbiter_max_latency", None)
+    latency_capped = None
+    if max_latency is not None:
+        try:
+            max_latency = float(max_latency)
+        except (TypeError, ValueError):
+            max_latency = None
+    if max_latency is not None and eligible:
+        fast = [m for m in eligible if (policy.latency_of(task.value, m) or 0.0) <= max_latency]
+        latency_capped = len(fast) < len(eligible)
+        eligible = fast or eligible  # if none qualify, keep all rather than fail
+
     prompt = _last_user_text(messages)
 
     if payload.get("stream"):
@@ -172,13 +187,16 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     tried: list[str] = []
     decision = None
     completion = None
+    latency = 0.0
     last_status, last_detail = 502, "no eligible model"
     for _ in range(MAX_ATTEMPTS):
         pool = _live(state, eligible, exclude=set(tried))
         decision = policy.choose(task.value, allowed=pool)
         payload["model"] = decision.model
+        t0 = time.monotonic()
         try:
             completion = await state.btl.chat(payload)
+            latency = time.monotonic() - t0
             state.quarantine.pop(decision.model, None)  # succeeded: clear quarantine
             break
         except httpx.HTTPStatusError as e:
@@ -220,7 +238,7 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     cost = raw_cost * request.app.state.price_mult.get(decision.model, 1.0)
     tokens = (completion.body.get("usage") or {}).get("total_tokens", 0)
 
-    shift = policy.record(task.value, decision.model, quality.value, cost, tokens)
+    shift = policy.record(task.value, decision.model, quality.value, cost, tokens, latency)
     if shift:
         request.app.state.alerts.appendleft({**shift, "ts": time.time()})
 
@@ -255,6 +273,9 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         "eligible_models": len(eligible),
         "budget_max_cost": max_cost,
         "budget_met": budget_met,
+        "latency_ms": round(latency * 1000),
+        "max_latency": max_latency,
+        "latency_capped": latency_capped,
         # Models that errored before this one served, if any (in-request failover).
         "failover_from": tried or None,
     }
