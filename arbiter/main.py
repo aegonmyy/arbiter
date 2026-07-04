@@ -5,10 +5,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from .auth import require_client
 from .btl import BTLClient, Cost
 from .classify import _last_user_text
 from .classifier import classify_smart
@@ -45,7 +46,7 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/v1/chat/completions")
+@app.post("/v1/chat/completions", dependencies=[Depends(require_client)])
 async def chat_completions(request: Request):
     """OpenAI-compatible entry point that routes instead of passing through.
 
@@ -270,7 +271,7 @@ async def alerts(request: Request) -> list:
     return list(request.app.state.alerts)
 
 
-@app.post("/v1/simulate-price")
+@app.post("/v1/simulate-price", dependencies=[Depends(require_client)])
 async def simulate_price(request: Request) -> dict:
     """Demo hook: scale a model's reported cost to imitate a provider re-price.
 
@@ -289,7 +290,7 @@ async def simulate_price(request: Request) -> dict:
     return {"model": model, "multiplier": mult, "active": request.app.state.price_mult}
 
 
-@app.post("/v1/reset")
+@app.post("/v1/reset", dependencies=[Depends(require_client)])
 async def reset(request: Request) -> dict:
     """Clear learned state and the decision feed for a fresh demo run."""
     request.app.state.policy.reset()

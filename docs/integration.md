@@ -92,11 +92,26 @@ This is the part to understand before exposing Arbiter beyond localhost.
   Arbiter; they all contribute to and benefit from the same shared, persistent
   policy, which is what makes it get cheaper for everyone over time.
 
-**Known limitation.** Because there is no client auth, the proxy is open: treat
-it as trusted-network / local only. Before exposing it publicly you would add a
-client-key check (callers present their own Arbiter key) so that reaching the
-endpoint doesn't mean spending the operator's BTL key. This is deliberately out
-of scope for now and noted as the first hardening step.
+## Client authentication
+
+Callers can be required to present their own **Arbiter API key** (separate from
+the operator's BTL key). This is opt-in:
+
+- Leave `ARBITER_API_KEYS` empty and the proxy is **open** - anyone who can reach
+  it is served (the default).
+- Set `ARBITER_API_KEYS` to a comma-separated list and the paid endpoint
+  (`/v1/chat/completions`) and the control endpoints (`/v1/reset`,
+  `/v1/simulate-price`) require `Authorization: Bearer <key>`; a missing or wrong
+  key returns `401`. The read-only observability endpoints stay open so the
+  dashboard keeps working.
+
+```
+ARBITER_API_KEYS=arb_first_key,arb_second_key
+```
+
+So reaching the endpoint no longer means spending the operator's BTL key - only
+holders of a valid Arbiter key get through. Per-key spend caps are the next
+hardening step (see [roadmap.md](roadmap.md)).
 
 ## Testing it under load
 

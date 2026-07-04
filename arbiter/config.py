@@ -31,6 +31,12 @@ BASELINE_CONTEXT = int(os.environ.get("BASELINE_CONTEXT", "128000"))
 
 REQUEST_TIMEOUT = float(os.environ.get("REQUEST_TIMEOUT", "120"))
 
+# Client API keys that callers must present. Comma-separated. When empty, client
+# auth is disabled and the proxy is open (the current default).
+ARBITER_API_KEYS = frozenset(
+    k.strip() for k in os.environ.get("ARBITER_API_KEYS", "").split(",") if k.strip()
+)
+
 
 def require_key() -> str:
     if not GATEWAY_API_KEY:
