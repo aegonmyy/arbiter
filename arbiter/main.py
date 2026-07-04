@@ -26,6 +26,8 @@ async def lifespan(app: FastAPI):
     # Price-shift alerts, and a demo multiplier to simulate a provider re-price.
     app.state.alerts = deque(maxlen=25)
     app.state.price_mult = {}
+    # How each request's task type was decided.
+    app.state.classifier_counts = {"rules": 0, "model": 0, "model-fallback": 0}
     yield
     await app.state.btl.aclose()
 
@@ -53,6 +55,8 @@ async def chat_completions(request: Request):
     policy: Policy = request.app.state.policy
     messages = payload["messages"]
     task, classified_by = await classify_smart(request.app.state.btl, messages)
+    counts = request.app.state.classifier_counts
+    counts[classified_by] = counts.get(classified_by, 0) + 1
 
     # Capability guard: only consider models whose context window fits this
     # prompt (rough 4-chars-per-token estimate plus the requested reply room).
@@ -98,6 +102,7 @@ async def chat_completions(request: Request):
     request.app.state.recent.appendleft({
         "ts": time.time(),
         "task": task.value,
+        "classified_by": classified_by,
         "model": decision.model,
         "mode": decision.mode,
         "quality": round(quality.value, 3),
@@ -141,6 +146,18 @@ async def recent(request: Request) -> list:
     return list(request.app.state.recent)
 
 
+@app.get("/v1/overview")
+async def overview(request: Request) -> dict:
+    """Summary stats for the dashboard beyond raw savings."""
+    st = request.app.state
+    return {
+        "pool_size": len(ALL_MODELS),
+        "classifier": dict(st.classifier_counts),
+        "alerts": len(st.alerts),
+        "active_price_overrides": st.price_mult,
+    }
+
+
 @app.get("/v1/alerts")
 async def alerts(request: Request) -> list:
     """Recent price-shift events that forced a model to be re-learned."""
@@ -173,6 +190,8 @@ async def reset(request: Request) -> dict:
     request.app.state.recent.clear()
     request.app.state.alerts.clear()
     request.app.state.price_mult.clear()
+    for k in request.app.state.classifier_counts:
+        request.app.state.classifier_counts[k] = 0
     return {"status": "reset"}
 
 

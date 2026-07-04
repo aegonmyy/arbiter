@@ -21,108 +21,100 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --background:#0d0d0d; --foreground:#ededed;
-      --card:#1a1a1a; --card-foreground:#ededed;
-      --primary:#2ee6c0; --primary-foreground:#0d0d0d;
-      --secondary:#2ed6e6; --accent:#2ed6e6;
-      --muted:#242424; --muted-foreground:#8a8a8a;
-      --border:#2b2b2b; --input:#1f1f1f;
+      --background:#0d0d0d; --foreground:#ededed; --card:#1a1a1a; --card-foreground:#ededed;
+      --primary:#2ee6c0; --primary-foreground:#0d0d0d; --secondary:#2ed6e6; --accent:#2ed6e6;
+      --muted:#242424; --muted-foreground:#8a8a8a; --border:#2b2b2b; --input:#1f1f1f;
     }
   }
   * { box-sizing:border-box; margin:0; padding:0; }
-  html { font-size:17px; }
-  body {
-    font-family:var(--font-sans); background:var(--background);
-    color:var(--foreground); -webkit-font-smoothing:antialiased;
-    line-height:1.45;
-  }
-  .mono { font-family:var(--font-mono); }
+  html { font-size:16px; }
+  body { font-family:var(--font-sans); background:var(--background); color:var(--foreground);
+    -webkit-font-smoothing:antialiased; line-height:1.45; }
+  .mono { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
 
-  header {
-    position:fixed; inset:0 0 auto 0; z-index:50; height:64px;
-    background:var(--card); border-bottom:1px solid var(--border);
-    backdrop-filter:blur(16px);
-  }
-  .header-inner {
-    height:64px; max-width:80rem; margin:0 auto;
-    display:flex; align-items:center; justify-content:space-between;
-    gap:1.5rem; padding:0 1.5rem;
-  }
+  header { position:sticky; top:0; z-index:50; height:64px; background:var(--card);
+    border-bottom:1px solid var(--border); backdrop-filter:blur(16px); }
+  .header-inner { height:64px; max-width:82rem; margin:0 auto; display:flex; align-items:center;
+    justify-content:space-between; gap:1.5rem; padding:0 1.5rem; }
   .brand { display:flex; align-items:center; gap:.7rem; }
-  .logo {
-    height:36px; width:36px; border-radius:12px; background:var(--primary);
-    color:var(--primary-foreground); display:flex; align-items:center;
-    justify-content:center; font-weight:700; box-shadow:0 1px 2px rgba(0,0,0,.08);
-  }
+  .logo { height:36px; width:36px; border-radius:12px; background:var(--primary);
+    color:var(--primary-foreground); display:flex; align-items:center; justify-content:center;
+    font-weight:700; box-shadow:0 1px 2px rgba(0,0,0,.08); }
   .wordmark { font-size:1.15rem; font-weight:600; letter-spacing:-.02em; }
-  .badge {
-    display:inline-flex; align-items:center; gap:.45rem;
-    border:1px solid var(--border); background:var(--background);
-    border-radius:12px; padding:.4rem .75rem; font-size:.72rem;
-    font-weight:500; color:var(--muted-foreground);
-  }
+  .badge { display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--border);
+    background:var(--background); border-radius:12px; padding:.4rem .75rem; font-size:.72rem;
+    font-weight:500; color:var(--muted-foreground); }
   .dot { height:8px; width:8px; border-radius:50%; background:var(--secondary); }
   @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:.3;} }
   .pulse-dot { animation:pulse-dot 1.8s ease-in-out infinite; }
+  @media (prefers-reduced-motion:reduce){ .pulse-dot{animation:none;} }
 
-  main { max-width:80rem; margin:0 auto; padding:2rem 1.5rem 3rem; padding-top:5.5rem; }
+  main { max-width:82rem; margin:0 auto; padding:1.6rem 1.5rem 3rem; }
+  .card { background:var(--card); color:var(--card-foreground); border:1px solid var(--border);
+    border-radius:var(--radius); box-shadow:0 1px 3px rgba(16,24,40,.04); padding:1.4rem 1.5rem; }
+  .card-title { font-size:.69rem; font-weight:500; text-transform:uppercase; letter-spacing:.09em;
+    color:var(--muted-foreground); margin-bottom:.7rem; }
 
-  .card {
-    background:var(--card); color:var(--card-foreground);
-    border:1px solid var(--border); border-radius:var(--radius);
-    box-shadow:0 1px 3px rgba(16,24,40,.04); padding:1.4rem 1.5rem;
-  }
-  .card-title {
-    font-size:.69rem; font-weight:500; text-transform:uppercase;
-    letter-spacing:.09em; color:var(--muted-foreground); margin-bottom:.7rem;
-  }
+  /* guidance hero */
+  .hero { display:grid; grid-template-columns:1.4fr 1fr; gap:1.25rem; margin-bottom:1.4rem; }
+  .hero h1 { font-size:1.5rem; font-weight:600; letter-spacing:-.02em; margin-bottom:.5rem; }
+  .hero p { color:var(--muted-foreground); font-size:.92rem; max-width:44ch; }
+  .steps { display:flex; gap:.4rem; margin-top:1rem; flex-wrap:wrap; }
+  .pill { font-size:.7rem; font-weight:500; padding:.35rem .7rem; border-radius:999px;
+    background:var(--muted); color:var(--muted-foreground); }
+  .pill b { color:var(--foreground); font-weight:600; }
+  .snippet { background:var(--background); border:1px solid var(--border); border-radius:14px;
+    padding:.9rem 1rem; font-family:var(--font-mono); font-size:.74rem; overflow-x:auto; line-height:1.7; }
+  .snippet .k { color:var(--primary); } .snippet .s { color:var(--secondary); } .snippet .c { color:var(--muted-foreground); }
+  .copybtn { margin-top:.7rem; border:1px solid var(--border); background:var(--card); color:var(--foreground);
+    border-radius:10px; padding:.4rem .8rem; font-size:.72rem; font-weight:500; cursor:pointer; font-family:inherit; }
+  .copybtn:hover { border-color:var(--primary); color:var(--primary); }
 
-  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.4rem; }
-  .stat-value { font-size:2rem; font-weight:700; letter-spacing:-.03em; line-height:1.1; }
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1rem; }
+  .stat-value { font-size:2rem; font-weight:700; letter-spacing:-.03em; line-height:1.1; font-variant-numeric:tabular-nums; }
   .stat-sub { font-size:.72rem; color:var(--muted-foreground); margin-top:.35rem; }
-  .teal { color:var(--secondary); }
-  .indigo { color:var(--primary); }
+  .teal { color:var(--secondary); } .indigo { color:var(--primary); }
+
+  .mini-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.4rem; }
+  .mini { display:flex; flex-direction:column; gap:.15rem; padding:.9rem 1.1rem; border:1px solid var(--border);
+    border-radius:16px; background:var(--card); }
+  .mini .l { font-size:.64rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted-foreground); }
+  .mini .v { font-size:1.15rem; font-weight:600; font-variant-numeric:tabular-nums; }
 
   .cols { display:grid; grid-template-columns:2fr 1fr; gap:1.25rem; align-items:start; }
-
-  .feed { display:flex; flex-direction:column; gap:.5rem; max-height:26rem; overflow-y:auto; }
-  .feed-row {
-    display:grid; grid-template-columns:auto 1fr auto auto; align-items:center;
-    gap:.85rem; padding:.6rem .75rem; border:1px solid var(--border);
-    border-radius:14px; background:var(--background); font-size:.82rem;
-  }
-  .chip {
-    font-size:.66rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
-    padding:.2rem .5rem; border-radius:8px; white-space:nowrap;
-  }
+  .spark-wrap { height:70px; margin-top:.3rem; }
+  .feed { display:flex; flex-direction:column; gap:.5rem; max-height:22rem; overflow-y:auto; }
+  .feed-row { display:grid; grid-template-columns:auto auto 1fr auto auto; align-items:center; gap:.7rem;
+    padding:.55rem .7rem; border:1px solid var(--border); border-radius:14px; background:var(--background); font-size:.8rem; }
+  .chip { font-size:.63rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:.18rem .45rem;
+    border-radius:8px; white-space:nowrap; }
   .chip-task { background:var(--muted); color:var(--muted-foreground); }
   .chip-exploit { background:color-mix(in srgb, var(--secondary) 16%, transparent); color:var(--secondary); }
-  .chip-explore { background:color-mix(in srgb, var(--primary) 12%, transparent); color:var(--primary); }
+  .chip-explore { background:color-mix(in srgb, var(--primary) 13%, transparent); color:var(--primary); }
+  .chip-by { border:1px solid var(--border); color:var(--muted-foreground); background:transparent; }
   .model-name { font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .saved-tag { font-weight:600; color:var(--secondary); font-size:.78rem; }
-  .cost-tag { color:var(--muted-foreground); font-size:.75rem; }
+  .saved-tag { font-weight:600; color:var(--secondary); font-size:.76rem; }
+  .cost-tag { color:var(--muted-foreground); font-size:.73rem; }
 
-  table { width:100%; border-collapse:collapse; font-size:.8rem; }
-  th { text-align:left; font-size:.66rem; text-transform:uppercase; letter-spacing:.07em;
-       color:var(--muted-foreground); font-weight:500; padding:.5rem .5rem; }
-  td { padding:.5rem .5rem; border-top:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; font-size:.79rem; }
+  th { text-align:left; font-size:.64rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground);
+    font-weight:500; padding:.45rem .5rem; }
+  td { padding:.45rem .5rem; border-top:1px solid var(--border); }
   tr.chosen td { background:color-mix(in srgb, var(--secondary) 8%, transparent); }
-  .task-section-title { font-size:.8rem; font-weight:600; margin:1rem 0 .3rem; text-transform:capitalize; }
+  .task-section-title { font-size:.78rem; font-weight:600; margin:1rem 0 .3rem; text-transform:capitalize; }
   .bar { height:6px; border-radius:4px; background:var(--muted); overflow:hidden; }
   .bar > span { display:block; height:100%; background:var(--secondary); }
 
   .rail { display:flex; flex-direction:column; gap:1rem; }
-  .how li { font-size:.82rem; color:var(--muted-foreground); margin:.55rem 0 .55rem 1rem; }
+  .how { list-style:disc; } .how li { font-size:.8rem; color:var(--muted-foreground); margin:.5rem 0 .5rem 1.1rem; }
   .how strong { color:var(--foreground); font-weight:600; }
-  .kv { display:flex; justify-content:space-between; font-size:.82rem; padding:.4rem 0; border-top:1px solid var(--border); }
-  .kv:first-child { border-top:none; }
-  .kv .k { color:var(--muted-foreground); }
-  .kv .v { font-weight:600; }
+  .kv { display:flex; justify-content:space-between; font-size:.8rem; padding:.38rem 0; border-top:1px solid var(--border); }
+  .kv:first-child { border-top:none; } .kv .k { color:var(--muted-foreground); } .kv .v { font-weight:600; }
+  .alert-row { display:flex; align-items:center; gap:.6rem; font-size:.78rem; padding:.5rem .65rem; border-radius:12px;
+    background:color-mix(in srgb, var(--primary) 6%, transparent); border:1px solid color-mix(in srgb, var(--primary) 20%, transparent); margin-bottom:.4rem; }
+  .empty { font-size:.78rem; color:var(--muted-foreground); }
 
-  @media (max-width:860px) {
-    .stat-grid { grid-template-columns:repeat(2,1fr); }
-    .cols { grid-template-columns:1fr; }
-  }
+  @media (max-width:900px){ .hero,.stat-grid,.mini-grid,.cols{grid-template-columns:1fr;} .stat-grid,.mini-grid{grid-template-columns:repeat(2,1fr);} }
 </style>
 </head>
 <body>
@@ -138,55 +130,84 @@
 </header>
 
 <main>
+  <!-- guidance -->
+  <section class="hero">
+    <div class="card">
+      <h1>Every request, to the cheapest model that still gets it right.</h1>
+      <p>Arbiter is a drop-in OpenAI-compatible endpoint. It classifies each request, routes it to the best model-for-the-money on the BTL runtime, checks the answer, and learns — so you stop paying premium prices for simple work.</p>
+      <div class="steps">
+        <span class="pill">1 · <b>Classify</b> the request</span>
+        <span class="pill">2 · <b>Filter</b> by context fit</span>
+        <span class="pill">3 · <b>Route</b> cheapest-good</span>
+        <span class="pill">4 · <b>Grade &amp; learn</b></span>
+        <span class="pill">5 · <b>React</b> to price moves</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Integrate in one line</div>
+      <div class="snippet"><span class="c"># point any OpenAI client here</span>
+client = OpenAI(
+  <span class="k">base_url</span>=<span class="s">"http://localhost:8000/v1"</span>,
+  <span class="k">api_key</span>=<span class="s">"ignored"</span>)
+<span class="c"># model field is ignored — Arbiter picks</span></div>
+      <button class="copybtn" onclick="copyBase()">Copy base URL</button>
+    </div>
+  </section>
+
+  <!-- headline stats -->
   <section class="stat-grid">
-    <div class="card">
-      <div class="card-title">Saved vs baseline</div>
-      <div class="stat-value teal" id="saved-pct">—</div>
-      <div class="stat-sub" id="saved-pct-sub">measuring…</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Total saved</div>
-      <div class="stat-value" id="saved-abs">—</div>
-      <div class="stat-sub" id="saved-proj">—</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Actual spend</div>
-      <div class="stat-value" id="actual">—</div>
-      <div class="stat-sub" id="baseline">vs baseline —</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Calls routed</div>
-      <div class="stat-value indigo" id="calls">—</div>
-      <div class="stat-sub">across all task types</div>
-    </div>
+    <div class="card"><div class="card-title">Saved vs baseline</div>
+      <div class="stat-value teal" id="saved-pct">—</div><div class="stat-sub" id="saved-pct-sub">measuring…</div></div>
+    <div class="card"><div class="card-title">Total saved</div>
+      <div class="stat-value" id="saved-abs">—</div><div class="stat-sub" id="saved-proj">—</div></div>
+    <div class="card"><div class="card-title">Actual spend</div>
+      <div class="stat-value" id="actual">—</div><div class="stat-sub" id="baseline">vs baseline —</div></div>
+    <div class="card"><div class="card-title">Calls routed</div>
+      <div class="stat-value indigo" id="calls">—</div><div class="stat-sub">across all task types</div></div>
+  </section>
+
+  <!-- secondary stats -->
+  <section class="mini-grid">
+    <div class="mini"><span class="l">Models in pool</span><span class="v" id="pool">—</span></div>
+    <div class="mini"><span class="l">Classified by rules</span><span class="v" id="rules-pct">—</span></div>
+    <div class="mini"><span class="l">Escalated to model</span><span class="v" id="model-pct">—</span></div>
+    <div class="mini"><span class="l">Price shifts caught</span><span class="v" id="alert-count">—</span></div>
   </section>
 
   <div class="cols">
     <div style="display:flex;flex-direction:column;gap:1.25rem;">
       <div class="card">
+        <div class="card-title">Savings over time</div>
+        <div class="spark-wrap"><svg id="spark" width="100%" height="70" preserveAspectRatio="none" viewBox="0 0 300 70"></svg></div>
+      </div>
+      <div class="card">
         <div class="card-title">Live routing decisions</div>
-        <div class="feed" id="feed"><div class="stat-sub">Waiting for traffic…</div></div>
+        <div class="feed" id="feed"><div class="empty">Waiting for traffic…</div></div>
       </div>
       <div class="card">
         <div class="card-title">What the router has learned</div>
-        <div id="policy"><div class="stat-sub">No data yet.</div></div>
+        <div id="policy"><div class="empty">No data yet.</div></div>
       </div>
     </div>
 
     <div class="rail">
       <div class="card">
+        <div class="card-title">Price alerts</div>
+        <div id="alerts"><div class="empty">No price shifts detected.</div></div>
+      </div>
+      <div class="card">
         <div class="card-title">How it works</div>
-        <ul class="how" style="list-style:disc;">
-          <li>Every request is <strong>classified</strong> by task type.</li>
-          <li>New task types <strong>explore</strong> each model to learn quality &amp; cost from the runtime.</li>
-          <li>Then it <strong>exploits</strong> — the cheapest model within tolerance of the best quality.</li>
-          <li>Savings are read from the runtime's own <strong>cost headers</strong>, not estimated.</li>
+        <ul class="how">
+          <li>Clear prompts are bucketed by <strong>rules</strong>; ambiguous ones by a free model.</li>
+          <li>Only models whose <strong>context fits</strong> are eligible.</li>
+          <li>It <strong>explores</strong> then <strong>exploits</strong> — cheapest within tolerance of the best.</li>
+          <li>Savings come from the runtime's own <strong>cost headers</strong>.</li>
+          <li>A price move <strong>re-opens exploration</strong> and re-routes.</li>
         </ul>
       </div>
       <div class="card">
         <div class="card-title">Baseline</div>
         <div class="kv"><span class="k">Premium default</span><span class="v mono">gpt-4o</span></div>
-        <div class="kv"><span class="k">Candidate models</span><span class="v" id="model-count">8</span></div>
         <div class="kv"><span class="k">Quality tolerance</span><span class="v">0.05</span></div>
         <div class="kv"><span class="k">Surface</span><span class="v mono">/v1/chat/completions</span></div>
       </div>
@@ -195,75 +216,89 @@
 </main>
 
 <script>
+const BASE = location.origin + "/v1";
 const money = (v, dp=5) => v==null ? "—" : "$" + Number(v).toFixed(dp);
 const fmtBig = (v) => v>=1 ? "$"+v.toLocaleString(undefined,{maximumFractionDigits:2}) : money(v);
+const pct = (n,d) => d>0 ? Math.round(100*n/d)+"%" : "—";
+async function j(p){ try{ return await (await fetch(p)).json(); }catch(e){ return null; } }
+function copyBase(){ navigator.clipboard?.writeText(BASE); const b=event.target; const t=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=t,1200); }
 
-async function j(path){ try{ const r=await fetch(path); return await r.json(); }catch(e){ return null; } }
-
-function renderReport(rep){
-  if(!rep) return;
-  document.getElementById("saved-pct").textContent = rep.saved_pct.toFixed(1) + "%";
-  document.getElementById("saved-pct-sub").textContent = "cheaper than always-baseline";
-  document.getElementById("saved-abs").textContent = fmtBig(rep.saved);
-  document.getElementById("actual").textContent = fmtBig(rep.actual_spend);
-  document.getElementById("baseline").textContent = "vs " + fmtBig(rep.baseline_spend) + " on baseline";
-  document.getElementById("calls").textContent = rep.calls.toLocaleString();
-  if(rep.calls>0){
-    const perCall = rep.saved / rep.calls;
-    const proj = perCall * 1_000_000;
-    document.getElementById("saved-proj").textContent =
-      "≈ " + fmtBig(proj) + " per 1M requests";
-  }
+let sparkData = [];
+function drawSpark(v){
+  v=Math.max(0,Math.min(100,v));
+  sparkData.push(v); if(sparkData.length>100) sparkData.shift();
+  const svg=document.getElementById("spark"); const W=300,H=70;
+  if(sparkData.length<2){ svg.innerHTML=""; return; }
+  const step=W/(sparkData.length-1);
+  const pts=sparkData.map((d,i)=>[i*step, H-2 - (d/100)*(H-6)]);
+  const line=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const area=line+` L${W} ${H} L0 ${H} Z`;
+  svg.innerHTML=`<path d="${area}" fill="color-mix(in srgb, var(--secondary) 14%, transparent)"/>`
+    +`<path d="${line}" fill="none" stroke="var(--secondary)" stroke-width="2"/>`
+    +`<circle cx="${pts[pts.length-1][0].toFixed(1)}" cy="${pts[pts.length-1][1].toFixed(1)}" r="3" fill="var(--secondary)"/>`;
 }
 
+function renderReport(r){
+  if(!r) return;
+  document.getElementById("saved-pct").textContent=r.saved_pct.toFixed(1)+"%";
+  document.getElementById("saved-pct-sub").textContent="cheaper than always-baseline";
+  document.getElementById("saved-abs").textContent=fmtBig(r.saved);
+  document.getElementById("actual").textContent=fmtBig(r.actual_spend);
+  document.getElementById("baseline").textContent="vs "+fmtBig(r.baseline_spend)+" on baseline";
+  document.getElementById("calls").textContent=r.calls.toLocaleString();
+  if(r.calls>0){ const proj=(r.saved/r.calls)*1e6;
+    document.getElementById("saved-proj").textContent="≈ "+fmtBig(proj)+" per 1M requests"; }
+  drawSpark(r.saved_pct);
+}
+function renderOverview(o){
+  if(!o) return;
+  document.getElementById("pool").textContent=o.pool_size;
+  const c=o.classifier||{}; const tot=(c.rules||0)+(c.model||0)+(c["model-fallback"]||0);
+  document.getElementById("rules-pct").textContent=pct(c.rules||0,tot);
+  document.getElementById("model-pct").textContent=pct((c.model||0)+(c["model-fallback"]||0),tot);
+  document.getElementById("alert-count").textContent=o.alerts||0;
+}
 function renderFeed(rows){
-  const el = document.getElementById("feed");
-  if(!rows || !rows.length){ return; }
-  el.innerHTML = rows.map(r=>{
-    const modeClass = r.mode==="exploit" ? "chip-exploit" : "chip-explore";
-    const saved = (r.saved!=null && r.saved>0) ? `<span class="saved-tag">−${money(r.saved)}</span>` : `<span class="cost-tag">${money(r.cost)}</span>`;
-    return `<div class="feed-row">
-      <span class="chip chip-task">${r.task}</span>
+  const el=document.getElementById("feed"); if(!rows||!rows.length) return;
+  el.innerHTML=rows.map(r=>{
+    const mc=r.mode==="exploit"?"chip-exploit":"chip-explore";
+    const val=(r.saved!=null&&r.saved>0)?`<span class="saved-tag">−${money(r.saved)}</span>`:`<span class="cost-tag">${money(r.cost)}</span>`;
+    return `<div class="feed-row"><span class="chip chip-task">${r.task}</span>
+      <span class="chip chip-by">${r.classified_by||"rules"}</span>
       <span class="model-name mono" title="${r.model}">${r.model}</span>
-      <span class="chip ${modeClass}">${r.mode}</span>
-      ${saved}
-    </div>`;
+      <span class="chip ${mc}">${r.mode}</span>${val}</div>`;
   }).join("");
 }
-
-function renderPolicy(pol){
-  const el = document.getElementById("policy");
-  if(!pol || !Object.keys(pol).length){ return; }
-  let html = "";
-  for(const [task, rows] of Object.entries(pol)){
-    const sorted = [...rows].sort((a,b)=>(a.avg_cost??9)-(b.avg_cost??9));
-    // chosen = cheapest whose quality within 0.05 of best
-    const bestQ = Math.max(...sorted.map(r=>r.quality??0));
-    const chosen = sorted.find(r=>(r.quality??0) >= bestQ-0.05);
-    html += `<div class="task-section-title">${task}</div>`;
-    html += `<table><thead><tr><th>Model</th><th>Runs</th><th>Quality</th><th>Avg cost</th></tr></thead><tbody>`;
+function renderAlerts(a){
+  const el=document.getElementById("alerts");
+  if(!a||!a.length){ el.innerHTML=`<div class="empty">No price shifts detected.</div>`; return; }
+  el.innerHTML=a.slice(0,5).map(x=>`<div class="alert-row">
+    <span class="chip chip-explore">${x.direction} ${x.task}</span>
+    <span class="mono" style="font-size:.72rem">${x.model}</span></div>`).join("");
+}
+function renderPolicy(p){
+  const el=document.getElementById("policy"); if(!p||!Object.keys(p).length) return;
+  let html="";
+  for(const [task,rows] of Object.entries(p)){
+    const sorted=[...rows].sort((a,b)=>(a.avg_cost??9)-(b.avg_cost??9));
+    const bestQ=Math.max(...sorted.map(r=>r.quality??0));
+    const chosen=sorted.find(r=>(r.quality??0)>=bestQ-0.05);
+    html+=`<div class="task-section-title">${task}</div><table><thead><tr><th>Model</th><th>Runs</th><th>Quality</th><th>Avg cost</th></tr></thead><tbody>`;
     for(const r of sorted){
-      const isChosen = chosen && r.model===chosen.model;
-      const q = r.quality==null ? "—" : r.quality.toFixed(2);
-      const w = Math.round((r.quality??0)*100);
-      html += `<tr class="${isChosen?'chosen':''}">
-        <td class="mono">${r.model}${isChosen?' &nbsp;✓':''}</td>
-        <td>${r.n}</td>
-        <td><div style="display:flex;align-items:center;gap:.5rem"><span style="width:2.2rem">${q}</span><div class="bar" style="flex:1"><span style="width:${w}%"></span></div></div></td>
-        <td class="mono">${money(r.avg_cost,7)}</td>
-      </tr>`;
+      const isC=chosen&&r.model===chosen.model; const q=r.quality==null?"—":r.quality.toFixed(2); const w=Math.round((r.quality??0)*100);
+      html+=`<tr class="${isC?'chosen':''}"><td class="mono">${r.model}${isC?' ✓':''}</td><td>${r.n}</td>
+        <td><div style="display:flex;align-items:center;gap:.5rem"><span style="width:2.1rem">${q}</span><div class="bar" style="flex:1"><span style="width:${w}%"></span></div></div></td>
+        <td class="mono">${money(r.avg_cost,7)}</td></tr>`;
     }
-    html += `</tbody></table>`;
+    html+=`</tbody></table>`;
   }
-  el.innerHTML = html;
+  el.innerHTML=html;
 }
-
 async function tick(){
-  const [rep, feed, pol] = await Promise.all([j("/v1/report"), j("/v1/recent"), j("/v1/policy")]);
-  renderReport(rep); renderFeed(feed); renderPolicy(pol);
+  const [rep,ov,feed,al,pol]=await Promise.all([j(BASE+"/report"),j(BASE+"/overview"),j(BASE+"/recent"),j(BASE+"/alerts"),j(BASE+"/policy")]);
+  renderReport(rep); renderOverview(ov); renderFeed(feed); renderAlerts(al); renderPolicy(pol);
 }
-tick();
-setInterval(tick, 1500);
+tick(); setInterval(tick,1500);
 </script>
 </body>
 </html>
