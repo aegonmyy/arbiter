@@ -1,17 +1,25 @@
+import time
+from collections import deque
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 
 from .btl import BTLClient
 from .classify import classify, _last_user_text
 from .policy import Policy
 from .scoring import score
 
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.btl = BTLClient()
     app.state.policy = Policy()
+    # Small ring buffer of recent routing decisions, for the live dashboard feed.
+    app.state.recent = deque(maxlen=25)
     yield
     await app.state.btl.aclose()
 
@@ -50,6 +58,19 @@ async def chat_completions(request: Request):
     cost = completion.cost.charged or 0.0
     policy.record(task.value, decision.model, quality.value, cost)
 
+    baseline_cost = policy.baseline_cost(task.value)
+    saved = round(baseline_cost - cost, 8) if baseline_cost is not None else None
+
+    request.app.state.recent.appendleft({
+        "ts": time.time(),
+        "task": task.value,
+        "model": decision.model,
+        "mode": decision.mode,
+        "quality": round(quality.value, 3),
+        "cost": cost,
+        "saved": saved,
+    })
+
     body = completion.body
     body["arbiter"] = {
         "task": task.value,
@@ -59,7 +80,8 @@ async def chat_completions(request: Request):
         "quality": round(quality.value, 3),
         "quality_reason": quality.reason,
         "cost": cost,
-        "baseline_cost": policy.baseline_cost(task.value),
+        "baseline_cost": baseline_cost,
+        "saved": saved,
     }
     return body
 
@@ -74,3 +96,14 @@ async def report(request: Request) -> dict:
 async def policy_state(request: Request) -> dict:
     """What the router has learned per task type so far."""
     return request.app.state.policy.snapshot()
+
+
+@app.get("/v1/recent")
+async def recent(request: Request) -> list:
+    """The most recent routing decisions, newest first."""
+    return list(request.app.state.recent)
+
+
+@app.get("/")
+async def dashboard() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")

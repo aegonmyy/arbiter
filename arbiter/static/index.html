@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Arbiter — LLM cost router</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --background:#f5f7fa; --foreground:#232323;
+    --card:#ffffff; --card-foreground:#232323;
+    --primary:#1814f3; --primary-foreground:#ffffff;
+    --secondary:#16dbcc; --accent:#16dbcc;
+    --muted:#f3f3f5; --muted-foreground:#718ebf;
+    --border:#e6eff5; --input:#f5f7fa;
+    --radius:1.5rem;
+    --font-sans:"Geist", ui-sans-serif, system-ui, sans-serif;
+    --font-mono:"Geist Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background:#0d0d0d; --foreground:#ededed;
+      --card:#1a1a1a; --card-foreground:#ededed;
+      --primary:#2ee6c0; --primary-foreground:#0d0d0d;
+      --secondary:#2ed6e6; --accent:#2ed6e6;
+      --muted:#242424; --muted-foreground:#8a8a8a;
+      --border:#2b2b2b; --input:#1f1f1f;
+    }
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html { font-size:17px; }
+  body {
+    font-family:var(--font-sans); background:var(--background);
+    color:var(--foreground); -webkit-font-smoothing:antialiased;
+    line-height:1.45;
+  }
+  .mono { font-family:var(--font-mono); }
+
+  header {
+    position:fixed; inset:0 0 auto 0; z-index:50; height:64px;
+    background:var(--card); border-bottom:1px solid var(--border);
+    backdrop-filter:blur(16px);
+  }
+  .header-inner {
+    height:64px; max-width:80rem; margin:0 auto;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:1.5rem; padding:0 1.5rem;
+  }
+  .brand { display:flex; align-items:center; gap:.7rem; }
+  .logo {
+    height:36px; width:36px; border-radius:12px; background:var(--primary);
+    color:var(--primary-foreground); display:flex; align-items:center;
+    justify-content:center; font-weight:700; box-shadow:0 1px 2px rgba(0,0,0,.08);
+  }
+  .wordmark { font-size:1.15rem; font-weight:600; letter-spacing:-.02em; }
+  .badge {
+    display:inline-flex; align-items:center; gap:.45rem;
+    border:1px solid var(--border); background:var(--background);
+    border-radius:12px; padding:.4rem .75rem; font-size:.72rem;
+    font-weight:500; color:var(--muted-foreground);
+  }
+  .dot { height:8px; width:8px; border-radius:50%; background:var(--secondary); }
+  @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+  .pulse-dot { animation:pulse-dot 1.8s ease-in-out infinite; }
+
+  main { max-width:80rem; margin:0 auto; padding:2rem 1.5rem 3rem; padding-top:5.5rem; }
+
+  .card {
+    background:var(--card); color:var(--card-foreground);
+    border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:0 1px 3px rgba(16,24,40,.04); padding:1.4rem 1.5rem;
+  }
+  .card-title {
+    font-size:.69rem; font-weight:500; text-transform:uppercase;
+    letter-spacing:.09em; color:var(--muted-foreground); margin-bottom:.7rem;
+  }
+
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.4rem; }
+  .stat-value { font-size:2rem; font-weight:700; letter-spacing:-.03em; line-height:1.1; }
+  .stat-sub { font-size:.72rem; color:var(--muted-foreground); margin-top:.35rem; }
+  .teal { color:var(--secondary); }
+  .indigo { color:var(--primary); }
+
+  .cols { display:grid; grid-template-columns:2fr 1fr; gap:1.25rem; align-items:start; }
+
+  .feed { display:flex; flex-direction:column; gap:.5rem; max-height:26rem; overflow-y:auto; }
+  .feed-row {
+    display:grid; grid-template-columns:auto 1fr auto auto; align-items:center;
+    gap:.85rem; padding:.6rem .75rem; border:1px solid var(--border);
+    border-radius:14px; background:var(--background); font-size:.82rem;
+  }
+  .chip {
+    font-size:.66rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
+    padding:.2rem .5rem; border-radius:8px; white-space:nowrap;
+  }
+  .chip-task { background:var(--muted); color:var(--muted-foreground); }
+  .chip-exploit { background:color-mix(in srgb, var(--secondary) 16%, transparent); color:var(--secondary); }
+  .chip-explore { background:color-mix(in srgb, var(--primary) 12%, transparent); color:var(--primary); }
+  .model-name { font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .saved-tag { font-weight:600; color:var(--secondary); font-size:.78rem; }
+  .cost-tag { color:var(--muted-foreground); font-size:.75rem; }
+
+  table { width:100%; border-collapse:collapse; font-size:.8rem; }
+  th { text-align:left; font-size:.66rem; text-transform:uppercase; letter-spacing:.07em;
+       color:var(--muted-foreground); font-weight:500; padding:.5rem .5rem; }
+  td { padding:.5rem .5rem; border-top:1px solid var(--border); }
+  tr.chosen td { background:color-mix(in srgb, var(--secondary) 8%, transparent); }
+  .task-section-title { font-size:.8rem; font-weight:600; margin:1rem 0 .3rem; text-transform:capitalize; }
+  .bar { height:6px; border-radius:4px; background:var(--muted); overflow:hidden; }
+  .bar > span { display:block; height:100%; background:var(--secondary); }
+
+  .rail { display:flex; flex-direction:column; gap:1rem; }
+  .how li { font-size:.82rem; color:var(--muted-foreground); margin:.55rem 0 .55rem 1rem; }
+  .how strong { color:var(--foreground); font-weight:600; }
+  .kv { display:flex; justify-content:space-between; font-size:.82rem; padding:.4rem 0; border-top:1px solid var(--border); }
+  .kv:first-child { border-top:none; }
+  .kv .k { color:var(--muted-foreground); }
+  .kv .v { font-weight:600; }
+
+  @media (max-width:860px) {
+    .stat-grid { grid-template-columns:repeat(2,1fr); }
+    .cols { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="logo">A</div>
+      <span class="wordmark">Arbiter</span>
+      <span class="badge">Routing on <strong style="color:var(--foreground);margin-left:.25rem">BTL Runtime</strong></span>
+    </div>
+    <span class="badge"><span class="dot pulse-dot"></span> Live</span>
+  </div>
+</header>
+
+<main>
+  <section class="stat-grid">
+    <div class="card">
+      <div class="card-title">Saved vs baseline</div>
+      <div class="stat-value teal" id="saved-pct">—</div>
+      <div class="stat-sub" id="saved-pct-sub">measuring…</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Total saved</div>
+      <div class="stat-value" id="saved-abs">—</div>
+      <div class="stat-sub" id="saved-proj">—</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Actual spend</div>
+      <div class="stat-value" id="actual">—</div>
+      <div class="stat-sub" id="baseline">vs baseline —</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Calls routed</div>
+      <div class="stat-value indigo" id="calls">—</div>
+      <div class="stat-sub">across all task types</div>
+    </div>
+  </section>
+
+  <div class="cols">
+    <div style="display:flex;flex-direction:column;gap:1.25rem;">
+      <div class="card">
+        <div class="card-title">Live routing decisions</div>
+        <div class="feed" id="feed"><div class="stat-sub">Waiting for traffic…</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">What the router has learned</div>
+        <div id="policy"><div class="stat-sub">No data yet.</div></div>
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="card">
+        <div class="card-title">How it works</div>
+        <ul class="how" style="list-style:disc;">
+          <li>Every request is <strong>classified</strong> by task type.</li>
+          <li>New task types <strong>explore</strong> each model to learn quality &amp; cost from the runtime.</li>
+          <li>Then it <strong>exploits</strong> — the cheapest model within tolerance of the best quality.</li>
+          <li>Savings are read from the runtime's own <strong>cost headers</strong>, not estimated.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Baseline</div>
+        <div class="kv"><span class="k">Premium default</span><span class="v mono">gpt-4o</span></div>
+        <div class="kv"><span class="k">Candidate models</span><span class="v" id="model-count">8</span></div>
+        <div class="kv"><span class="k">Quality tolerance</span><span class="v">0.05</span></div>
+        <div class="kv"><span class="k">Surface</span><span class="v mono">/v1/chat/completions</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const money = (v, dp=5) => v==null ? "—" : "$" + Number(v).toFixed(dp);
+const fmtBig = (v) => v>=1 ? "$"+v.toLocaleString(undefined,{maximumFractionDigits:2}) : money(v);
+
+async function j(path){ try{ const r=await fetch(path); return await r.json(); }catch(e){ return null; } }
+
+function renderReport(rep){
+  if(!rep) return;
+  document.getElementById("saved-pct").textContent = rep.saved_pct.toFixed(1) + "%";
+  document.getElementById("saved-pct-sub").textContent = "cheaper than always-baseline";
+  document.getElementById("saved-abs").textContent = fmtBig(rep.saved);
+  document.getElementById("actual").textContent = fmtBig(rep.actual_spend);
+  document.getElementById("baseline").textContent = "vs " + fmtBig(rep.baseline_spend) + " on baseline";
+  document.getElementById("calls").textContent = rep.calls.toLocaleString();
+  if(rep.calls>0){
+    const perCall = rep.saved / rep.calls;
+    const proj = perCall * 1_000_000;
+    document.getElementById("saved-proj").textContent =
+      "≈ " + fmtBig(proj) + " per 1M requests";
+  }
+}
+
+function renderFeed(rows){
+  const el = document.getElementById("feed");
+  if(!rows || !rows.length){ return; }
+  el.innerHTML = rows.map(r=>{
+    const modeClass = r.mode==="exploit" ? "chip-exploit" : "chip-explore";
+    const saved = (r.saved!=null && r.saved>0) ? `<span class="saved-tag">−${money(r.saved)}</span>` : `<span class="cost-tag">${money(r.cost)}</span>`;
+    return `<div class="feed-row">
+      <span class="chip chip-task">${r.task}</span>
+      <span class="model-name mono" title="${r.model}">${r.model}</span>
+      <span class="chip ${modeClass}">${r.mode}</span>
+      ${saved}
+    </div>`;
+  }).join("");
+}
+
+function renderPolicy(pol){
+  const el = document.getElementById("policy");
+  if(!pol || !Object.keys(pol).length){ return; }
+  let html = "";
+  for(const [task, rows] of Object.entries(pol)){
+    const sorted = [...rows].sort((a,b)=>(a.avg_cost??9)-(b.avg_cost??9));
+    // chosen = cheapest whose quality within 0.05 of best
+    const bestQ = Math.max(...sorted.map(r=>r.quality??0));
+    const chosen = sorted.find(r=>(r.quality??0) >= bestQ-0.05);
+    html += `<div class="task-section-title">${task}</div>`;
+    html += `<table><thead><tr><th>Model</th><th>Runs</th><th>Quality</th><th>Avg cost</th></tr></thead><tbody>`;
+    for(const r of sorted){
+      const isChosen = chosen && r.model===chosen.model;
+      const q = r.quality==null ? "—" : r.quality.toFixed(2);
+      const w = Math.round((r.quality??0)*100);
+      html += `<tr class="${isChosen?'chosen':''}">
+        <td class="mono">${r.model}${isChosen?' &nbsp;✓':''}</td>
+        <td>${r.n}</td>
+        <td><div style="display:flex;align-items:center;gap:.5rem"><span style="width:2.2rem">${q}</span><div class="bar" style="flex:1"><span style="width:${w}%"></span></div></div></td>
+        <td class="mono">${money(r.avg_cost,7)}</td>
+      </tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+  el.innerHTML = html;
+}
+
+async function tick(){
+  const [rep, feed, pol] = await Promise.all([j("/v1/report"), j("/v1/recent"), j("/v1/policy")]);
+  renderReport(rep); renderFeed(feed); renderPolicy(pol);
+}
+tick();
+setInterval(tick, 1500);
+</script>
+</body>
+</html>
