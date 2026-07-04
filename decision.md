@@ -9,6 +9,28 @@ Newest entries at the top.
 
 ---
 
+## Batch complete — summary and status
+
+All nine features landed as clean local commits (no Claude co-author), each with
+tests. **Full suite: 36 passed.** The UI static-export build (`build:export`)
+passes exit 0 with all 10 docs pages, so the MDX edits won't break the Docker
+deploy.
+
+Shipped this batch: README rework · in-request failover · warm-start priors ·
+latency-aware routing · durable metrics + timeseries · variance-aware drift
+detection · difficulty routing + confidence cascade · near-duplicate cache ·
+human 👍/👎 feedback loop. Docs (roadmap/strategies/api-reference) updated in both
+`docs/*.md` and the served `ui/content/docs/*.mdx`.
+
+**Still holding the deploy** (see below) — nothing pushed to origin. Everything is
+in local commits on `main` for you to review and push.
+
+**Open items that need you** (all flagged inline below): deploy go-ahead;
+sandboxed code execution (infra/security call); embedding-based grading/cache
+(needs a confirmed embeddings route on BTL).
+
+---
+
 ## Stronger quality signals: shipped the feedback loop, deferred the rest (NEEDS YOU)
 
 "Stronger quality signals" (roadmap Phase 2, tagged L) had three parts. I built
