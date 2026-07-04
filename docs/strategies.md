@@ -246,6 +246,83 @@ request and automatically comes back when it recovers - no manual intervention.
 This is a first cut at the reliability item on the [roadmap](roadmap.md); full
 failover (retry the next-best model within the same request) builds on it.
 
+## 9. Warm start - benchmark priors so cold start isn't free-fall
+
+**Problem.** With no data, the policy must explore every model on every new task
+before it can exploit, and savings sit near zero while it pays that tuition.
+
+**Approach** (`priors.py`, `policy.py`). Seed each model's quality per task from a
+curated read of public benchmarks (HumanEval->code, GSM8K->math, MMLU->factual,
+etc.). The prior is folded into the quality estimate as a small number of
+pseudo-observations (`PRIOR_STRENGTH`), so it anchors early, noisy estimates and
+then decays as real calls accumulate. A model that carries a prior needs only one
+real sample - to learn its *cost* - before it can be exploited, since the prior
+supplies the quality. **Why weak?** The priors are approximate and must never
+override live evidence; a couple of measured calls outweigh them.
+
+## 10. Failover - route around a broken model within one request
+
+**Problem.** Quarantine (§8) skips a broken model on the *next* request, but the
+request that hit the failure still failed.
+
+**Approach** (`main.py`). When a routed call errors, quarantine that model and
+immediately retry the next-best live model in the same request, up to
+`MAX_ATTEMPTS`. So a provider blip is invisible to the caller. On streaming this
+is limited to the stream *open*: once tokens are flowing we can't switch models
+without duplicating output, so a mid-stream error is terminal.
+
+## 11. Confidence cascade - escalate only when the cheap answer is weak
+
+**Problem.** A cheap model is usually fine, but sometimes returns a bad answer.
+Routing by average quality can't catch a one-off miss on *this* prompt.
+
+**Approach** (`main.py`). On objective tasks, if the cheap answer fails its check
+(score below `CASCADE_MIN`), escalate once to a stronger model within the same
+request and keep whichever answer scored better. The weak attempt is still
+recorded, so the policy learns from it. Fenced to objective tasks, where a low
+score is trustworthy rather than a noisy judge read.
+
+## 12. Difficulty routing - split a task when it's too coarse
+
+**Problem.** "what is 2+2" and "prove the infinitude of primes" are both `math`
+but shouldn't share a policy.
+
+**Approach** (`difficulty.py`). A free, deterministic read of prompt difficulty
+(length, reasoning cues, task-specific markers) splits each task into `easy` and
+`hard`. To stay backward-compatible with everything already learned, only *hard*
+prompts get a new sub-bucket (`math:hard`); easy prompts keep the base bucket.
+
+## 13. Near-duplicate cache - the cheapest call is the one you skip
+
+**Problem.** Repeated or lightly-reworded prompts pay full price every time.
+
+**Approach** (`cache.py`). A near-duplicate of a previously well-scored prompt is
+served from cache for free. Matching is local token-set (Jaccard) overlap of the
+normalized prompt - no embeddings, no network - so it tolerates case,
+punctuation, whitespace and word-order differences. Only well-scored answers are
+cached, so a bad answer is never served repeatedly. This complements the
+runtime's byte-exact cache; embedding-based paraphrase matching is future work.
+
+## 14. Human feedback - the strongest quality signal, and drift as statistics
+
+**Problem.** Objective checks and the judge are proxies; a human thumbs-down is
+ground truth. And the price-shift detector's fixed threshold either misses small
+consistent moves or false-alarms on noisy ones.
+
+**Approach.** `POST /v1/feedback` folds 👍/👎 into routing quality with enough
+weight (`FEEDBACK_WEIGHT`) to override the judge over a few votes
+(`policy.py`). Separately, drift detection (§7) now fires on a move that is
+*either* large in relative terms *or* statistically significant against the
+model's own price history (>= `Z_THRESHOLD` sigma and >= `REL_FLOOR` in size) -
+so a small, consistent shift is caught early while ordinary noise is not.
+
+## Latency as a routing objective
+
+Every call is timed and the mean latency is learned per model. A caller can set
+`arbiter_max_latency` (seconds) to drop models that are too slow for an
+interactive path - a third eligibility gate alongside context and budget, making
+routing multi-objective: cost, quality *and* speed.
+
 ## Cross-cutting decisions
 
 - **OpenAI surface only.** Arbiter routes on `/v1/chat/completions`, so its

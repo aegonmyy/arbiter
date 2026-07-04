@@ -12,10 +12,12 @@ served by `main.py`. Examples assume the default `http://localhost:8000`.
 | `GET /health` | Liveness check. |
 | `GET /v1/report` | Cumulative savings versus the baseline. |
 | `GET /v1/policy` | What the router has learned per task type. |
-| `GET /v1/recent` | The most recent routing decisions (newest first). |
-| `GET /v1/overview` | Summary stats: pool size, classifier split, alert count. |
+| `GET /v1/recent` | The most recent routing decisions (newest first, durable). |
+| `GET /v1/timeseries` | Calls and spend per time bucket, for a trend line. |
+| `GET /v1/overview` | Summary stats: pool size, classifier split, alert count, cache size. |
 | `GET /v1/pricing` | The runtime's chat-surface catalog with list prices, each tagged `routable`. |
 | `GET /v1/alerts` | Recent price-shift events. |
+| `POST /v1/feedback` | Record human 👍/👎 on a routed answer (strongest quality signal). |
 | `POST /v1/simulate-price` | Demo hook: scale a model's cost to imitate a re-price. |
 | `POST /v1/reset` | Clear learned state and feeds for a fresh run. |
 | `POST /v1/register` | Mint a client API key from an email (open, no auth). |
@@ -23,9 +25,10 @@ served by `main.py`. Examples assume the default `http://localhost:8000`.
 | `POST /v1/key/{pause,resume,revoke}` | Change the calling key's status. |
 | `GET /`, `/app`, `/start`, `/docs` | The web app (see [interface.md](interface.md)). |
 
-`/v1/chat/completions`, `/v1/reset` and `/v1/simulate-price` require an
-`Authorization: Bearer <key>` (see [Client authentication](integration.md#client-authentication));
-a missing or invalid key returns `401`. Read-only endpoints are open.
+`/v1/chat/completions`, `/v1/feedback`, `/v1/reset` and `/v1/simulate-price`
+require an `Authorization: Bearer <key>` (see
+[Client authentication](integration.md#client-authentication)); a missing or
+invalid key returns `401`. Read-only endpoints are open.
 
 ---
 
@@ -47,10 +50,16 @@ other field is passed through to the runtime unchanged.
 
 Only `messages` is required (a 422 is returned otherwise).
 
-**Optional budget.** Add `"arbiter_max_cost": <usd>` to cap the per-request cost.
-Arbiter estimates each model's cost for the request from list prices and routes
-only among models within the ceiling (falling back to the cheapest if none fit).
-The field is stripped before the request reaches the runtime.
+**Optional routing controls** (all non-standard fields, stripped before the
+request reaches the runtime):
+
+- `"arbiter_max_cost": <usd>` - cap the per-request cost. Arbiter estimates each
+  model's cost from list prices and routes only among models within the ceiling
+  (falling back to the cheapest if none fit).
+- `"arbiter_max_latency": <seconds>` - drop models whose learned mean latency
+  exceeds the ceiling, for interactive paths. Untimed models pass.
+- `"arbiter_no_cache": true` - bypass the near-duplicate cache for this request
+  (neither read from nor written to it).
 
 **Response.** The normal OpenAI completion body, with an added `arbiter` object
 describing the decision:
@@ -82,19 +91,27 @@ describing the decision:
 | Field | Meaning |
 |-------|---------|
 | `task` | Detected task type: `code`/`math`/`structured`/`factual`/`open`. |
+| `difficulty` | `easy` or `hard`; hard prompts route in their own sub-bucket. |
 | `classified_by` | How the task was decided: `rules`, `model`, or `model-fallback`. |
 | `model` | The model Arbiter routed to. |
-| `mode` | `explore` (still learning this model for the task) or `exploit`. |
+| `mode` | `explore`, `exploit`, `escalate` (confidence cascade), or `cache`. |
 | `reason` | Human-readable explanation of the routing decision. |
+| `cascaded_from` | If the confidence cascade escalated, the cheap model it escalated from (else `null`). |
 | `quality` | Score of this answer, 0..1. |
 | `quality_reason` | How the score was derived (objective check, judge, or learned). |
-| `cost` | The real charge for this call, from `x-btl-customer-charge`. |
+| `cost` | The real charge for this call, from `x-btl-customer-charge` (`0` on a cache hit). |
 | `baseline_cost` | Learned mean cost of the baseline for this task, or `null` if not yet sampled. |
 | `saved` | `baseline_cost - cost` for this call, or `null` if baseline unknown. |
 | `tokens_needed` | Estimated tokens required (used by the context filter). |
-| `eligible_models` | How many models passed the context and budget filters. |
+| `eligible_models` | How many models passed the context, budget and latency filters. |
 | `budget_max_cost` | The per-request cost ceiling, if `arbiter_max_cost` was set (else `null`). |
 | `budget_met` | Whether any model fit the budget (`false` means it fell back to the cheapest). |
+| `latency_ms` | Measured latency of the served call, in milliseconds. |
+| `max_latency` | The latency ceiling, if `arbiter_max_latency` was set (else `null`). |
+| `latency_capped` | Whether the latency ceiling removed any model. |
+| `cache` | `hit` if served from the near-duplicate cache, else `miss`. |
+| `cache_similarity` | On a hit, the similarity (0..1) to the cached prompt. |
+| `failover_from` | Models that errored before this one served, or `null` (in-request failover). |
 
 ### Streaming
 
@@ -180,7 +197,8 @@ stats for that task.
 
 ## GET /v1/recent
 
-The most recent routing decisions, newest first (bounded ring buffer).
+The most recent routing decisions, newest first. Durable (persisted to the policy
+store), so it survives a restart.
 
 ```json
 [
@@ -192,8 +210,23 @@ The most recent routing decisions, newest first (bounded ring buffer).
     "mode": "explore",
     "quality": 0.5,
     "cost": 6e-06,
-    "saved": null
+    "saved": null,
+    "failover_from": null
   }
+]
+```
+
+---
+
+## GET /v1/timeseries
+
+Calls and spend per time bucket over the recent window, oldest first, for a trend
+line. Query params: `bucket_seconds` (default `3600`) and `buckets` (default
+`24`).
+
+```json
+[
+  { "bucket_start": 1783184412, "calls": 12, "spend": 4.2e-05 }
 ]
 ```
 
@@ -205,10 +238,11 @@ Summary stats for the dashboard beyond raw savings.
 
 ```json
 {
-  "pool_size": 9,
+  "pool_size": 14,
   "classifier": { "rules": 2, "model": 2, "model-fallback": 0 },
   "alerts": 0,
-  "active_price_overrides": {}
+  "active_price_overrides": {},
+  "cache_entries": 3
 }
 ```
 
@@ -218,6 +252,31 @@ Summary stats for the dashboard beyond raw savings.
 | `classifier` | Cumulative counts of how requests were classified. |
 | `alerts` | Number of price-shift events recorded. |
 | `active_price_overrides` | Any demo multipliers currently applied. |
+| `cache_entries` | Entries currently held in the near-duplicate cache. |
+
+---
+
+## POST /v1/feedback
+
+Record human 👍/👎 on a routed answer. This is the strongest quality signal the
+router has and overrides the model judge over a few votes. Requires auth.
+
+**Request**
+
+```json
+{ "model": "deepseek-v4-flash", "task": "code", "rating": "up" }
+```
+
+`rating` is `up` or `down`. `task` may be a base task or a difficulty sub-bucket
+(e.g. `code:hard`) - use the `task` and `difficulty` from the response's `arbiter`
+block to target the right one. A `422` is returned for an unknown model, a missing
+task, or an invalid rating.
+
+**Response**
+
+```json
+{ "task": "code", "model": "deepseek-v4-flash", "up": 5, "down": 1 }
+```
 
 ---
 

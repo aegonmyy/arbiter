@@ -1,122 +1,90 @@
 # Roadmap
 
 This is an honest plan, not a wish list. It starts from the limitations the
-current build already acknowledges (see [strategies.md](strategies.md) and
+current build acknowledges (see [strategies.md](strategies.md) and
 [integration.md](integration.md)) and orders work by impact, not by how
 interesting it is to build.
 
 **Guiding principle: trust before reach.** Make Arbiter safe and reliable to run
-for real (Phase 1), then make its routing genuinely smarter (Phase 2), then
-expand what it can reach (Phase 3). A clever router nobody can safely deploy is
-worth less than a simple one they can.
+for real, then make its routing genuinely smarter, then expand what it can reach.
+A clever router nobody can safely deploy is worth less than a simple one they can.
 
 Effort is tagged **S** (days), **M** (a week or two), **L** (larger).
 
 ---
 
-## Phase 1 - Harden: make it safe to run for real
+## Shipped
 
-These are the things that block using Arbiter outside a trusted network. They
-are not glamorous; they are the difference between a demo and a service.
+What was on the plan and is now built:
 
-- **Client authentication & multi-tenancy** *(M)* - the top blocker. Today the
-  proxy is open: anyone who reaches it spends the operator's BTL key, and
-  everyone shares one policy. Add per-client keys, and optionally per-tenant
-  policies so teams don't pollute each other's learning.
-- **Budget guardrails** *(S)* - per-key and global spend caps, with a hard stop
-  and alerting. A cost router should be the *last* thing to run up a surprise
-  bill.
-- **Reliability & failover** *(M)* - on a provider/runtime error or timeout,
-  retry and fall back to the next-best eligible model instead of failing the
-  request. Turns the router into a resilience layer, not a single point of
-  failure.
-- **Streaming responses** *(M)* - support Server-Sent Events pass-through.
-  Interactive apps expect token streaming; today Arbiter only returns whole
-  responses. Scoring on a streamed answer needs care (grade on completion).
-- **Durable metrics** *(S)* - the decision feed, alerts, and counters are
-  in-memory and vanish on restart. Persist them and expose a time series so
-  savings history survives and can be exported.
-- **Horizontal scale** *(L)* - the policy is a single-file SQLite store behind a
+- ✅ **Client authentication & multi-tenancy** — per-client keys minted at signup,
+  Bearer-authenticated, with a shared learning policy.
+- ✅ **Budget guardrails** — per-request `arbiter_max_cost` ceiling plus per-key
+  rate limits (50/6h, 600/week).
+- ✅ **Reliability & failover** — a routed model that errors is quarantined *and*
+  the request fails over to the next-best live model within the same call.
+- ✅ **Streaming responses** — SSE pass-through; the answer is scored and learned
+  on completion, priced at the learned average when the runtime omits a cost
+  header.
+- ✅ **Durable metrics** — the routing feed, price-shift alerts and classifier
+  counters are persisted to the policy store and survive a restart, plus a
+  calls/spend time series (`GET /v1/timeseries`).
+- ✅ **Warm-start from public benchmarks** — per-model quality priors seed each
+  task, decayed by live data, so routing is sensible from the first request.
+- ✅ **Per-prompt difficulty routing** — hard prompts route in their own
+  sub-bucket, paired with an in-request **confidence cascade** (try cheap,
+  escalate only when the answer fails its check).
+- ✅ **Semantic caching** — a near-duplicate prompt is served from cache for free
+  (lexical similarity today; embeddings are the upgrade below).
+- ✅ **Statistical drift detection** — price re-exploration now fires on a move
+  that is either large *or* statistically significant against a model's own
+  price history, so it catches small consistent shifts and false-alarms less.
+- ✅ **Latency-aware routing** — per-model latency is measured and an optional
+  `arbiter_max_latency` ceiling filters slow models for interactive paths.
+- ✅ **Human feedback loop** — `POST /v1/feedback` folds 👍/👎 into routing
+  quality with enough weight to override the model judge (the safe part of
+  "stronger quality signals" below).
+
+## Next — Harden
+
+- **Horizontal scale** *(L)* — the policy is a single-file SQLite store behind a
   global lock, fine for one process. Move it to a shared store (Postgres/Redis)
   so multiple Arbiter instances share one brain and scale out.
 
-## Phase 2 - Deepen: route smarter
+## Next — Deepen
 
-These attack the quality of the routing decision itself - the places where the
-current heuristics are honest but shallow.
+- **Stronger quality signals** *(L)* — the biggest remaining lever. Today code is
+  only *parsed*, not run. Add **sandboxed code execution** against tests
+  (needs a real sandbox — a security decision) and **embedding-based grading**.
+  The 👍/👎 feedback loop above is the first, shipped piece of this.
+- **Embedding-based semantic cache** *(M)* — replace the lexical near-duplicate
+  match with embeddings so true paraphrases (different words, same meaning) also
+  hit, once an embeddings route on the runtime is confirmed.
+- **Warm-start refinement** *(S)* — source the priors from a maintained benchmark
+  table rather than hand-set values, and decay them per-task by observed variance.
 
-- **Warm-start from public benchmarks** *(M)* - seed each model's quality prior
-  from published results (HumanEval->code, GSM8K->math, etc.), decaying the prior
-  as live data arrives. Kills the cold-start "tuition" phase where savings sit
-  near zero.
-- **Stronger quality signals** *(L)* - the biggest lever. Today code is only
-  *parsed*, not run, and open-ended quality leans on a single judge. Add:
-  sandboxed code execution against tests, reference/embedding-based grading, and
-  a human feedback loop (👍/👎 from the calling app) that overrides model
-  judgement.
-- **Per-prompt difficulty routing** *(M)* - route by how hard *this* request is,
-  not just its coarse task type. Two math prompts of very different difficulty
-  currently get the same treatment. Pair with an **in-request confidence
-  cascade**: try cheap, escalate within the same request only when the answer
-  looks weak.
-- **Semantic caching** *(M)* - dedupe near-identical prompts (not just exact
-  matches) and serve a cached answer for free. Complements the runtime's own
-  exact-cache with embedding-based similarity.
-- **Statistical drift & price detection** *(S)* - replace the fixed
-  `PRICE_SHIFT` / quality thresholds with proper change-point detection, so the
-  router reacts to real shifts sooner and false-alarms less.
-- **Latency-aware routing** *(M)* - make routing multi-objective: cost, quality,
-  *and* speed. Let a caller ask for "cheapest under 800ms" for interactive
-  paths.
+## Next — Expand
 
-## Phase 3 - Expand: reach more
-
-Once it's trustworthy and smart, widen what it can do.
-
-- **Anthropic `/v1/messages` surface** *(M)* - the current pool is
-  OpenAI-surface only, so every Claude model is excluded. Add the second
-  protocol surface and translate, unlocking a large set of strong models as
-  routing candidates.
-- **Self-updating registry** *(S)* - auto-discover models, context windows, and
-  prices from the runtime's `GET /v1/models` instead of a hand-maintained list,
-  so new models enter the pool automatically.
-- **Shadow / challenger routing** *(M)* - send a small traffic slice to new or
-  candidate models to keep quality/price estimates fresh and safely A/B new
-  entrants before promoting them.
-- **Multi-modal routing** *(L)* - extend classification, scoring, and routing to
-  vision and audio requests, not just text.
-- **Explainability & analytics** *(S)* - a cost/quality Pareto view per task,
-  and a per-decision "why this model" trace, so operators can audit and trust
-  the routing.
+- **Anthropic `/v1/messages` surface** *(M)* — the pool is OpenAI-surface only, so
+  every Claude model is excluded. Add the second protocol surface and translate,
+  unlocking a large set of strong models as candidates.
+- **Self-updating registry** *(S)* — auto-discover models, context windows and
+  prices from `GET /v1/models` instead of a hand-maintained list.
+- **Shadow / challenger routing** *(M)* — send a small traffic slice to new or
+  candidate models to keep estimates fresh and safely A/B new entrants.
+- **Multi-modal routing** *(L)* — extend classification, scoring and routing to
+  vision and audio, not just text.
+- **Explainability & analytics** *(S)* — a cost/quality Pareto view per task and a
+  per-decision "why this model" trace for auditing.
 
 ---
-
-## Concerns -> where they're addressed
-
-A map from today's known limitations to the item that fixes them.
-
-| Known limitation (today) | Addressed by |
-|--------------------------|--------------|
-| Open proxy; caller key ignored | Phase 1 - Client auth & multi-tenancy |
-| No spend ceiling | Phase 1 - Budget guardrails |
-| Single point of failure on provider errors | Phase 1 - Reliability & failover |
-| No streaming | Phase 1 - Streaming responses |
-| Feeds/metrics lost on restart | Phase 1 - Durable metrics |
-| SQLite + global lock won't scale out | Phase 1 - Horizontal scale |
-| Cold-start tuition (savings ~ 0% early) | Phase 2 - Warm-start priors |
-| "Parses" ≠ "correct"; judge is imperfect | Phase 2 - Stronger quality signals |
-| Coarse task buckets; classifier can misfire | Phase 2 - Per-prompt difficulty routing |
-| Only exact cache (via runtime), none of our own | Phase 2 - Semantic caching |
-| Heuristic price/quality thresholds | Phase 2 - Statistical drift detection |
-| Claude / Anthropic models unreachable | Phase 3 - `/v1/messages` surface |
-| Hand-maintained model registry | Phase 3 - Self-updating registry |
 
 ## Non-goals (for now)
 
 To keep focus, Arbiter deliberately does **not** aim to:
 
-- Train or fine-tune its own models - it routes, it doesn't build models.
-- Be a general-purpose API gateway (rate limiting, transformations, etc.) - it
-  stays a *routing* layer.
-- Replace the runtime - Arbiter is built *on* BTL and depends on its cost
+- Train or fine-tune its own models — it routes, it doesn't build models.
+- Be a general-purpose API gateway (transformations, etc.) — it stays a *routing*
+  layer.
+- Replace the runtime — Arbiter is built *on* BTL and depends on its cost
   telemetry; it is not a provider abstraction that hides it.
