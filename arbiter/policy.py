@@ -1,0 +1,130 @@
+"""The routing brain: learn, per task type, which model to send a request to.
+
+The rule we optimise for is deliberately simple to explain: use the cheapest
+model whose measured quality is within a small tolerance of the best model we've
+seen for this task. Cheap-but-good wins; we only pay up when nothing cheap is
+good enough.
+
+Getting there needs data, so a new task type first explores — every candidate
+(including the premium baseline) is tried a few times to learn its quality and
+cost from the live runtime. After that we exploit the winner, with a small
+random exploration rate so shifting prices or models don't go unnoticed.
+"""
+import random
+import sqlite3
+import threading
+from dataclasses import dataclass
+
+from .models import BASELINE, CANDIDATES
+
+# Every model the policy may pick, baseline included — sometimes the expensive
+# model really is the only one good enough, and that's a valid choice.
+ALL_MODELS = [m.id for m in CANDIDATES] + [BASELINE.id]
+
+MIN_SAMPLES = 2          # tries per model before we trust its numbers
+EPSILON = 0.10           # steady-state chance of re-exploring
+QUALITY_TOLERANCE = 0.05  # how much quality we'll trade for a cheaper model
+
+
+@dataclass
+class Decision:
+    model: str
+    mode: str            # "explore" | "exploit"
+    reason: str
+
+
+class Policy:
+    def __init__(self, db_path: str = "data/arbiter.db") -> None:
+        import os
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+        self._db = sqlite3.connect(db_path, check_same_thread=False)
+        self._lock = threading.Lock()
+        self._db.execute(
+            """CREATE TABLE IF NOT EXISTS stats (
+                   task   TEXT,
+                   model  TEXT,
+                   n      INTEGER NOT NULL DEFAULT 0,
+                   q_sum  REAL    NOT NULL DEFAULT 0,
+                   cost_sum REAL  NOT NULL DEFAULT 0,
+                   PRIMARY KEY (task, model)
+               )"""
+        )
+        self._db.commit()
+
+    # -- reads -------------------------------------------------------------
+    def _row(self, task: str, model: str) -> tuple[int, float, float]:
+        cur = self._db.execute(
+            "SELECT n, q_sum, cost_sum FROM stats WHERE task=? AND model=?",
+            (task, model),
+        )
+        r = cur.fetchone()
+        return (r[0], r[1], r[2]) if r else (0, 0.0, 0.0)
+
+    def _mean(self, task: str, model: str) -> tuple[int, float, float]:
+        n, q, c = self._row(task, model)
+        if n == 0:
+            return 0, 0.0, 0.0
+        return n, q / n, c / n
+
+    def baseline_cost(self, task: str) -> float | None:
+        n, _, mean_cost = self._mean(task, BASELINE.id)
+        return mean_cost if n else None
+
+    # -- decision ----------------------------------------------------------
+    def choose(self, task: str) -> Decision:
+        with self._lock:
+            samples = {m: self._row(task, m)[0] for m in ALL_MODELS}
+
+            # 1. Explore: anything not yet sampled enough. Pick the least-tried
+            #    so exploration spreads evenly.
+            under = [m for m in ALL_MODELS if samples[m] < MIN_SAMPLES]
+            if under:
+                pick = min(under, key=lambda m: samples[m])
+                return Decision(pick, "explore", "gathering baseline data")
+
+            # 2. Occasionally re-explore so the policy stays current.
+            if random.random() < EPSILON:
+                pick = random.choice(ALL_MODELS)
+                return Decision(pick, "explore", "epsilon re-check")
+
+            # 3. Exploit: cheapest model within tolerance of the best quality.
+            means = {m: self._mean(task, m) for m in ALL_MODELS}
+            best_q = max(mq for _, mq, _ in means.values())
+            acceptable = {
+                m: mc for m, (_, mq, mc) in means.items()
+                if mq >= best_q - QUALITY_TOLERANCE
+            }
+            pick = min(acceptable, key=acceptable.get)
+            return Decision(
+                pick, "exploit",
+                f"cheapest within {QUALITY_TOLERANCE:.2f} of best quality {best_q:.2f}",
+            )
+
+    # -- update ------------------------------------------------------------
+    def record(self, task: str, model: str, quality: float, cost: float) -> None:
+        with self._lock:
+            self._db.execute(
+                """INSERT INTO stats (task, model, n, q_sum, cost_sum)
+                   VALUES (?, ?, 1, ?, ?)
+                   ON CONFLICT(task, model) DO UPDATE SET
+                       n = n + 1,
+                       q_sum = q_sum + excluded.q_sum,
+                       cost_sum = cost_sum + excluded.cost_sum""",
+                (task, model, quality, cost),
+            )
+            self._db.commit()
+
+    # -- reporting ---------------------------------------------------------
+    def snapshot(self) -> dict:
+        cur = self._db.execute(
+            "SELECT task, model, n, q_sum, cost_sum FROM stats ORDER BY task, model"
+        )
+        tasks: dict[str, list[dict]] = {}
+        for task, model, n, q_sum, cost_sum in cur.fetchall():
+            tasks.setdefault(task, []).append({
+                "model": model,
+                "n": n,
+                "quality": round(q_sum / n, 3) if n else None,
+                "avg_cost": round(cost_sum / n, 8) if n else None,
+            })
+        return tasks
