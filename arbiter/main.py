@@ -8,8 +8,9 @@ from fastapi.responses import FileResponse
 
 from .btl import BTLClient
 from .classify import classify, _last_user_text
+from .judge import judge
 from .policy import Policy
-from .scoring import score
+from .scoring import Score, score
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -54,7 +55,21 @@ async def chat_completions(request: Request):
     payload["model"] = decision.model
     completion = await request.app.state.btl.chat(payload)
 
-    quality = score(task, _last_user_text(messages), completion.text)
+    prompt = _last_user_text(messages)
+    quality = score(task, prompt, completion.text)
+
+    # For tasks with no objective check, get a real quality signal from the
+    # judge — but only while exploring. Once we've learned a model's quality,
+    # exploitation reuses it so steady-state traffic stays cheap.
+    if not quality.objective:
+        if decision.mode == "explore":
+            q = await judge(request.app.state.btl, prompt, completion.text)
+            quality = Score(q, "judged by model", objective=False)
+        else:
+            learned = policy.quality_of(task.value, decision.model)
+            if learned is not None:
+                quality = Score(learned, "learned quality", objective=False)
+
     cost = completion.cost.charged or 0.0
     policy.record(task.value, decision.model, quality.value, cost)
 

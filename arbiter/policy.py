@@ -70,6 +70,10 @@ class Policy:
         n, _, mean_cost = self._mean(task, BASELINE.id)
         return mean_cost if n else None
 
+    def quality_of(self, task: str, model: str) -> float | None:
+        n, mean_q, _ = self._mean(task, model)
+        return mean_q if n else None
+
     # -- decision ----------------------------------------------------------
     def choose(self, task: str) -> Decision:
         with self._lock:
