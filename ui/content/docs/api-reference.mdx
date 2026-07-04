@@ -84,6 +84,32 @@ describing the decision:
 | `tokens_needed` | Estimated tokens required (used by the context filter). |
 | `eligible_models` | How many models passed the context filter. |
 
+### Streaming
+
+Set `"stream": true` and the response is a standard OpenAI SSE stream
+(`text/event-stream`) of `chat.completion.chunk` events, so any OpenAI streaming
+client works unchanged. Routing happens before the first token; the answer is
+scored and folded into the policy once the stream finishes.
+
+Routing details are exposed two ways:
+
+- **Response headers** available immediately: `X-Arbiter-Model`, `X-Arbiter-Task`,
+  `X-Arbiter-Mode`, `X-Arbiter-Classified-By`, `X-Arbiter-Eligible`.
+- **A trailing `arbiter` event** after the stream, carrying the final `quality`,
+  `cost`, `saved` and `cost_estimated`. Strict clients stop at `[DONE]` and
+  ignore it.
+
+```
+event: arbiter
+data: {"task":"math","model":"...","quality":1.0,"cost":2e-06,"cost_estimated":true,"saved":4e-05}
+```
+
+**Cost on streaming.** The runtime does not report a cost header on streaming
+responses. When it is absent, Arbiter prices the call at the model's learned
+average cost for that task (measured from non-streaming calls) and flags it with
+`cost_estimated: true`; price-shift detection is skipped for those calls. Cost on
+non-streaming calls is always the real measured charge.
+
 ---
 
 ## GET /health

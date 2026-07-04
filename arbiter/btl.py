@@ -79,5 +79,10 @@ class BTLClient:
             model=payload.get("model", ""),
         )
 
+    def stream(self, payload: dict[str, Any]):
+        """Open a streaming chat completion. Returns an httpx streaming context
+        manager; the caller reads the SSE body and the cost headers off it."""
+        return self._client.stream("POST", "/chat/completions", json=payload)
+
     async def aclose(self) -> None:
         await self._client.aclose()

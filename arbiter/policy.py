@@ -86,6 +86,10 @@ class Policy:
         n, mean_q, _ = self._mean(task, model)
         return mean_q if n else None
 
+    def cost_of(self, task: str, model: str) -> float | None:
+        n, _, mean_cost = self._mean(task, model)
+        return mean_cost if n else None
+
     # -- decision ----------------------------------------------------------
     def choose(self, task: str, allowed: list[str] | None = None) -> Decision:
         # `allowed` is the set of models eligible for this request (e.g. those

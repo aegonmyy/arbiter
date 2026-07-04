@@ -1,3 +1,4 @@
+import json
 import time
 from collections import deque
 from contextlib import asynccontextmanager
@@ -5,10 +6,10 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from .btl import BTLClient
+from .btl import BTLClient, Cost
 from .classify import _last_user_text
 from .classifier import classify_smart
 from .judge import judge
@@ -73,6 +74,11 @@ async def chat_completions(request: Request):
     # The client's requested model is ignored on purpose - choosing the model
     # is the whole point of Arbiter. We keep every other parameter as-is.
     payload["model"] = decision.model
+    prompt = _last_user_text(messages)
+
+    if payload.get("stream"):
+        return _stream(request, payload, task, decision, classified_by, eligible, prompt)
+
     try:
         completion = await request.app.state.btl.chat(payload)
     except httpx.HTTPStatusError as e:
@@ -89,7 +95,6 @@ async def chat_completions(request: Request):
         raise HTTPException(status_code=502,
                             detail={"upstream": "btl_runtime", "error": f"unreachable: {type(e).__name__}"})
 
-    prompt = _last_user_text(messages)
     quality = score(task, prompt, completion.text)
 
     # For tasks with no objective check, get a real quality signal from the
@@ -144,6 +149,89 @@ async def chat_completions(request: Request):
         "eligible_models": len(eligible),
     }
     return body
+
+
+def _stream(request: Request, payload, task, decision, classified_by, eligible, prompt):
+    """Proxy a streaming completion. Tokens flow to the client live; the answer
+    is scored and folded into the policy once the stream finishes."""
+    app_state = request.app.state
+    btl = app_state.btl
+    policy = app_state.policy
+
+    async def gen():
+        full: list[str] = []
+        usage_tokens = 0
+        cost = Cost()
+        try:
+            async with btl.stream(payload) as resp:
+                if resp.status_code != 200:
+                    detail = (await resp.aread()).decode("utf-8", "replace")[:400]
+                    yield f'data: {json.dumps({"error": {"upstream_status": resp.status_code, "detail": detail, "model": decision.model}})}\n\n'
+                    return
+                cost = Cost.from_headers(resp.headers)
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data.strip() != "[DONE]":
+                            try:
+                                chunk = json.loads(data)
+                                choices = chunk.get("choices") or [{}]
+                                delta = (choices[0].get("delta") or {}).get("content")
+                                if delta:
+                                    full.append(delta)
+                                if chunk.get("usage"):
+                                    usage_tokens = chunk["usage"].get("total_tokens", 0) or 0
+                            except Exception:
+                                pass
+                    yield line + "\n"
+        except httpx.RequestError as e:
+            yield f'data: {json.dumps({"error": {"detail": f"unreachable: {type(e).__name__}"}})}\n\n'
+            return
+
+        # The client already has the full answer; now score it and learn.
+        text = "".join(full)
+        quality = score(task, prompt, text)
+        if not quality.objective:
+            if decision.mode == "explore":
+                q = await judge(btl, prompt, text)
+                quality = Score(q, "judged by model", objective=False)
+            else:
+                learned = policy.quality_of(task.value, decision.model)
+                if learned is not None:
+                    quality = Score(learned, "learned quality", objective=False)
+
+        # The runtime does not report cost on streaming responses, so when the
+        # header is absent we price the call at the model's learned average cost
+        # (measured from non-streaming calls) and skip price-shift detection.
+        estimated = cost.charged is None
+        base = policy.cost_of(task.value, decision.model) or 0.0 if estimated else cost.charged
+        c = (base or 0.0) * app_state.price_mult.get(decision.model, 1.0)
+        shift = policy.record(task.value, decision.model, quality.value, c,
+                              0 if estimated else usage_tokens)
+        if shift:
+            app_state.alerts.appendleft({**shift, "ts": time.time()})
+        baseline_cost = policy.baseline_cost(task.value)
+        saved = round(baseline_cost - c, 8) if baseline_cost is not None else None
+        app_state.recent.appendleft({
+            "ts": time.time(), "task": task.value, "classified_by": classified_by,
+            "model": decision.model, "mode": decision.mode,
+            "quality": round(quality.value, 3), "cost": c, "saved": saved,
+        })
+        # Trailing metadata event; strict OpenAI clients stop at [DONE] and ignore it.
+        meta = {"task": task.value, "model": decision.model, "mode": decision.mode,
+                "classified_by": classified_by, "quality": round(quality.value, 3),
+                "cost": c, "cost_estimated": estimated, "saved": saved}
+        yield f"event: arbiter\ndata: {json.dumps(meta)}\n\n"
+
+    headers = {
+        "X-Arbiter-Model": decision.model,
+        "X-Arbiter-Task": task.value,
+        "X-Arbiter-Mode": decision.mode,
+        "X-Arbiter-Classified-By": classified_by,
+        "X-Arbiter-Eligible": str(len(eligible)),
+        "Cache-Control": "no-cache",
+    }
+    return StreamingResponse(gen(), media_type="text/event-stream", headers=headers)
 
 
 @app.get("/v1/report")
