@@ -21,7 +21,13 @@ GATEWAY_API_KEY = os.environ.get("GATEWAY_API_KEY", "")
 
 # The model we pretend a naive team would use for everything. Savings are
 # reported relative to this.
-BASELINE_MODEL = os.environ.get("BASELINE_MODEL", "claude-opus-4-8")
+# The premium model savings are measured against. Must be an OpenAI-surface
+# route (the /v1/chat/completions models); Anthropic-direct models won't work.
+BASELINE_MODEL = os.environ.get("BASELINE_MODEL", "gpt-4o")
+
+# Assumed context window for the baseline when it isn't one of the registry
+# candidates. gpt-4o is 128k; override if you point BASELINE_MODEL elsewhere.
+BASELINE_CONTEXT = int(os.environ.get("BASELINE_CONTEXT", "128000"))
 
 REQUEST_TIMEOUT = float(os.environ.get("REQUEST_TIMEOUT", "120"))
 

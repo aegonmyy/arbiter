@@ -11,6 +11,8 @@ at request time and are what the policy actually learns from.
 """
 from dataclasses import dataclass
 
+from . import config
+
 
 @dataclass(frozen=True)
 class ModelSpec:
@@ -35,7 +37,8 @@ CANDIDATES: list[ModelSpec] = [
 ]
 
 # What a naive team would use for everything. Savings are measured against this.
-BASELINE = ModelSpec("gpt-4o", "large", 128_000)
+# Driven by config so it can be pointed at a different premium model.
+BASELINE = ModelSpec(config.BASELINE_MODEL, "large", config.BASELINE_CONTEXT)
 
 CANDIDATE_IDS = [m.id for m in CANDIDATES]
 
