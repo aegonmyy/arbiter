@@ -22,18 +22,25 @@ from .scoring import Score, score
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 # How long to skip a model after it returns an upstream error.
 QUARANTINE_SECONDS = 300
+# How many models to try within a single request before giving up. The first is
+# the routed choice; the rest are failover to the next-best live model.
+MAX_ATTEMPTS = 3
 
 
 def _quarantine(state, model: str) -> None:
     state.quarantine[model] = time.time() + QUARANTINE_SECONDS
 
 
-def _live(state, models: list[str]) -> list[str]:
-    """Drop models currently quarantined; if that leaves nothing, keep the lot
-    so we still try rather than fail."""
+def _live(state, models: list[str], exclude: "set[str] | tuple" = ()) -> list[str]:
+    """Models eligible to try right now: not quarantined and not already tried
+    this request. Falls back gracefully so we always return something to try:
+    first any un-tried model (ignoring quarantine), then the whole list."""
     now = time.time()
-    ok = [m for m in models if state.quarantine.get(m, 0) <= now]
-    return ok or models
+    ok = [m for m in models if m not in exclude and state.quarantine.get(m, 0) <= now]
+    if ok:
+        return ok
+    untried = [m for m in models if m not in exclude]
+    return untried or models
 # The exported Next.js UI, if it has been built (docs + rich dashboard).
 UI_OUT = Path(__file__).resolve().parent.parent / "ui" / "out"
 
@@ -152,36 +159,46 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         # If nothing fits the budget, fall back to the single cheapest estimate.
         eligible = within or [min(eligible, key=lambda m: estimate_cost(m, in_tokens, out_tokens))]
 
-    # Skip models that recently errored, so a broken model doesn't stall routing.
-    eligible = _live(request.app.state, eligible)
-    decision = policy.choose(task.value, allowed=eligible)
-
-    # The client's requested model is ignored on purpose - choosing the model
-    # is the whole point of Arbiter. We keep every other parameter as-is.
-    payload["model"] = decision.model
     prompt = _last_user_text(messages)
 
     if payload.get("stream"):
-        return _stream(request, payload, task, decision, classified_by, eligible, prompt)
+        return _stream(request, payload, task, classified_by, eligible, prompt)
 
-    try:
-        completion = await request.app.state.btl.chat(payload)
-    except httpx.HTTPStatusError as e:
-        # The runtime/provider rejected the call (e.g. 402 out of credit, 429
-        # rate limit, 400 bad request). Quarantine the model, surface it cleanly
-        # with the upstream status, and don't record a failed attempt.
-        _quarantine(request.app.state, decision.model)
+    # Route with in-request failover. The client's model field is ignored on
+    # purpose - choosing the model is the whole point. If the routed model errors
+    # we quarantine it and fall back to the next-best live model, up to
+    # MAX_ATTEMPTS, so one bad provider doesn't fail the request.
+    state = request.app.state
+    tried: list[str] = []
+    decision = None
+    completion = None
+    last_status, last_detail = 502, "no eligible model"
+    for _ in range(MAX_ATTEMPTS):
+        pool = _live(state, eligible, exclude=set(tried))
+        decision = policy.choose(task.value, allowed=pool)
+        payload["model"] = decision.model
         try:
-            detail = e.response.json()
-        except ValueError:
-            detail = (e.response.text or "")[:300]
-        raise HTTPException(status_code=e.response.status_code,
-                            detail={"upstream": "btl_runtime", "model": decision.model, "error": detail})
-    except httpx.RequestError as e:
-        _quarantine(request.app.state, decision.model)
-        raise HTTPException(status_code=502,
-                            detail={"upstream": "btl_runtime", "error": f"unreachable: {type(e).__name__}"})
-    request.app.state.quarantine.pop(decision.model, None)  # succeeded: clear any quarantine
+            completion = await state.btl.chat(payload)
+            state.quarantine.pop(decision.model, None)  # succeeded: clear quarantine
+            break
+        except httpx.HTTPStatusError as e:
+            # The runtime/provider rejected the call (e.g. 402 out of credit, 429
+            # rate limit, 400 bad request). Quarantine the model and try the next.
+            _quarantine(state, decision.model)
+            tried.append(decision.model)
+            last_status = e.response.status_code
+            try:
+                last_detail = e.response.json()
+            except ValueError:
+                last_detail = (e.response.text or "")[:300]
+        except httpx.RequestError as e:
+            _quarantine(state, decision.model)
+            tried.append(decision.model)
+            last_status, last_detail = 502, f"unreachable: {type(e).__name__}"
+    if completion is None:
+        # Every attempt failed - surface the last upstream error cleanly.
+        raise HTTPException(status_code=last_status,
+                            detail={"upstream": "btl_runtime", "tried": tried, "error": last_detail})
 
     quality = score(task, prompt, completion.text)
 
@@ -219,6 +236,7 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         "quality": round(quality.value, 3),
         "cost": cost,
         "saved": saved,
+        "failover_from": tried or None,
     })
 
     body = completion.body
@@ -237,89 +255,112 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         "eligible_models": len(eligible),
         "budget_max_cost": max_cost,
         "budget_met": budget_met,
+        # Models that errored before this one served, if any (in-request failover).
+        "failover_from": tried or None,
     }
     return body
 
 
-def _stream(request: Request, payload, task, decision, classified_by, eligible, prompt):
+def _stream(request: Request, payload, task, classified_by, eligible, prompt):
     """Proxy a streaming completion. Tokens flow to the client live; the answer
-    is scored and folded into the policy once the stream finishes."""
+    is scored and folded into the policy once the stream finishes.
+
+    Failover here is limited to the stream *open*: if a model returns a non-200
+    before any tokens are sent, it's quarantined and the next-best live model is
+    tried. An error mid-stream is terminal - once tokens have gone to the client
+    we can't cleanly switch models, so we stop rather than duplicate output.
+    """
     app_state = request.app.state
     btl = app_state.btl
     policy = app_state.policy
 
     async def gen():
-        full: list[str] = []
-        usage_tokens = 0
-        cost = Cost()
-        try:
-            async with btl.stream(payload) as resp:
-                if resp.status_code != 200:
-                    _quarantine(app_state, decision.model)
-                    detail = (await resp.aread()).decode("utf-8", "replace")[:400]
-                    yield f'data: {json.dumps({"error": {"upstream_status": resp.status_code, "detail": detail, "model": decision.model}})}\n\n'
+        tried: list[str] = []
+        for _ in range(MAX_ATTEMPTS):
+            pool = _live(app_state, eligible, exclude=set(tried))
+            decision = policy.choose(task.value, allowed=pool)
+            payload["model"] = decision.model
+            full: list[str] = []
+            usage_tokens = 0
+            started = False
+            try:
+                async with btl.stream(payload) as resp:
+                    if resp.status_code != 200:
+                        # Open failed - safe to failover, nothing sent yet.
+                        _quarantine(app_state, decision.model)
+                        tried.append(decision.model)
+                        continue
+                    app_state.quarantine.pop(decision.model, None)
+                    cost = Cost.from_headers(resp.headers)
+                    async for line in resp.aiter_lines():
+                        started = True
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            if data.strip() != "[DONE]":
+                                try:
+                                    chunk = json.loads(data)
+                                    choices = chunk.get("choices") or [{}]
+                                    delta = (choices[0].get("delta") or {}).get("content")
+                                    if delta:
+                                        full.append(delta)
+                                    if chunk.get("usage"):
+                                        usage_tokens = chunk["usage"].get("total_tokens", 0) or 0
+                                except Exception:
+                                    pass
+                        yield line + "\n"
+            except httpx.RequestError as e:
+                _quarantine(app_state, decision.model)
+                tried.append(decision.model)
+                if started:
+                    # Already streaming to the client - terminal, no failover.
+                    yield f'data: {json.dumps({"error": {"detail": f"unreachable mid-stream: {type(e).__name__}", "model": decision.model}})}\n\n'
                     return
-                cost = Cost.from_headers(resp.headers)
-                async for line in resp.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data.strip() != "[DONE]":
-                            try:
-                                chunk = json.loads(data)
-                                choices = chunk.get("choices") or [{}]
-                                delta = (choices[0].get("delta") or {}).get("content")
-                                if delta:
-                                    full.append(delta)
-                                if chunk.get("usage"):
-                                    usage_tokens = chunk["usage"].get("total_tokens", 0) or 0
-                            except Exception:
-                                pass
-                    yield line + "\n"
-        except httpx.RequestError as e:
-            _quarantine(app_state, decision.model)
-            yield f'data: {json.dumps({"error": {"detail": f"unreachable: {type(e).__name__}"}})}\n\n'
+                continue  # nothing sent yet - try the next model
+
+            # Stream finished cleanly: the client already has the full answer;
+            # now score it and fold quality + cost into the policy.
+            text = "".join(full)
+            quality = score(task, prompt, text)
+            if not quality.objective:
+                if decision.mode == "explore":
+                    q = await judge(btl, prompt, text)
+                    quality = Score(q, "judged by model", objective=False)
+                else:
+                    learned = policy.quality_of(task.value, decision.model)
+                    if learned is not None:
+                        quality = Score(learned, "learned quality", objective=False)
+
+            # The runtime does not report cost on streaming responses, so when the
+            # header is absent we price the call at the model's learned average cost
+            # (measured from non-streaming calls) and skip price-shift detection.
+            estimated = cost.charged is None
+            base = policy.cost_of(task.value, decision.model) or 0.0 if estimated else cost.charged
+            c = (base or 0.0) * app_state.price_mult.get(decision.model, 1.0)
+            shift = policy.record(task.value, decision.model, quality.value, c,
+                                  0 if estimated else usage_tokens)
+            if shift:
+                app_state.alerts.appendleft({**shift, "ts": time.time()})
+            baseline_cost = policy.baseline_cost(task.value)
+            saved = round(baseline_cost - c, 8) if baseline_cost is not None else None
+            app_state.recent.appendleft({
+                "ts": time.time(), "task": task.value, "classified_by": classified_by,
+                "model": decision.model, "mode": decision.mode,
+                "quality": round(quality.value, 3), "cost": c, "saved": saved,
+                "failover_from": tried or None,
+            })
+            # Trailing metadata event; strict OpenAI clients stop at [DONE] and ignore it.
+            meta = {"task": task.value, "model": decision.model, "mode": decision.mode,
+                    "classified_by": classified_by, "quality": round(quality.value, 3),
+                    "cost": c, "cost_estimated": estimated, "saved": saved,
+                    "failover_from": tried or None}
+            yield f"event: arbiter\ndata: {json.dumps(meta)}\n\n"
             return
-        app_state.quarantine.pop(decision.model, None)  # succeeded: clear quarantine
 
-        # The client already has the full answer; now score it and learn.
-        text = "".join(full)
-        quality = score(task, prompt, text)
-        if not quality.objective:
-            if decision.mode == "explore":
-                q = await judge(btl, prompt, text)
-                quality = Score(q, "judged by model", objective=False)
-            else:
-                learned = policy.quality_of(task.value, decision.model)
-                if learned is not None:
-                    quality = Score(learned, "learned quality", objective=False)
-
-        # The runtime does not report cost on streaming responses, so when the
-        # header is absent we price the call at the model's learned average cost
-        # (measured from non-streaming calls) and skip price-shift detection.
-        estimated = cost.charged is None
-        base = policy.cost_of(task.value, decision.model) or 0.0 if estimated else cost.charged
-        c = (base or 0.0) * app_state.price_mult.get(decision.model, 1.0)
-        shift = policy.record(task.value, decision.model, quality.value, c,
-                              0 if estimated else usage_tokens)
-        if shift:
-            app_state.alerts.appendleft({**shift, "ts": time.time()})
-        baseline_cost = policy.baseline_cost(task.value)
-        saved = round(baseline_cost - c, 8) if baseline_cost is not None else None
-        app_state.recent.appendleft({
-            "ts": time.time(), "task": task.value, "classified_by": classified_by,
-            "model": decision.model, "mode": decision.mode,
-            "quality": round(quality.value, 3), "cost": c, "saved": saved,
-        })
-        # Trailing metadata event; strict OpenAI clients stop at [DONE] and ignore it.
-        meta = {"task": task.value, "model": decision.model, "mode": decision.mode,
-                "classified_by": classified_by, "quality": round(quality.value, 3),
-                "cost": c, "cost_estimated": estimated, "saved": saved}
-        yield f"event: arbiter\ndata: {json.dumps(meta)}\n\n"
+        # Every attempt failed to open a stream.
+        yield f'data: {json.dumps({"error": {"detail": "all eligible models failed to respond", "tried": tried}})}\n\n'
 
     headers = {
-        "X-Arbiter-Model": decision.model,
         "X-Arbiter-Task": task.value,
-        "X-Arbiter-Mode": decision.mode,
         "X-Arbiter-Classified-By": classified_by,
         "X-Arbiter-Eligible": str(len(eligible)),
         "Cache-Control": "no-cache",

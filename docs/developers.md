@@ -109,8 +109,10 @@ for chunk in stream:
 ```
 
 Routing happens before the first token. After the stream, Arbiter emits one extra
-`event: arbiter` with the final quality, cost and savings (strict clients ignore
-it), and the routing model is also in the `X-Arbiter-Model` response header.
+`event: arbiter` with the final model, quality, cost and savings (strict clients
+ignore it). Read the serving model from that event: on streaming responses it is
+not a header, because in-request failover can switch models after the headers are
+sent.
 
 ## 5. Read what Arbiter decided
 

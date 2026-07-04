@@ -105,15 +105,19 @@ scored and folded into the policy once the stream finishes.
 
 Routing details are exposed two ways:
 
-- **Response headers** available immediately: `X-Arbiter-Model`, `X-Arbiter-Task`,
-  `X-Arbiter-Mode`, `X-Arbiter-Classified-By`, `X-Arbiter-Eligible`.
-- **A trailing `arbiter` event** after the stream, carrying the final `quality`,
-  `cost`, `saved` and `cost_estimated`. Strict clients stop at `[DONE]` and
-  ignore it.
+- **Response headers** available immediately: `X-Arbiter-Task`,
+  `X-Arbiter-Classified-By`, `X-Arbiter-Eligible`. The chosen `model` is not a
+  header on streaming responses: in-request failover can switch models after the
+  headers are sent, so the model that actually served is reported in the trailing
+  event instead (where it is always accurate).
+- **A trailing `arbiter` event** after the stream, carrying the final `model`,
+  `mode`, `quality`, `cost`, `saved`, `cost_estimated`, and `failover_from` (the
+  models that errored before this one served, or null). Strict clients stop at
+  `[DONE]` and ignore it.
 
 ```
 event: arbiter
-data: {"task":"math","model":"...","quality":1.0,"cost":2e-06,"cost_estimated":true,"saved":4e-05}
+data: {"task":"math","model":"...","quality":1.0,"cost":2e-06,"cost_estimated":true,"saved":4e-05,"failover_from":null}
 ```
 
 **Cost on streaming.** The runtime does not report a cost header on streaming
