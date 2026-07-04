@@ -47,8 +47,8 @@ function Hero() {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <Link href="/app" className="rounded-xl bg-primary px-7 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Launch app</Link>
-        <Link href="/docs/" className="rounded-xl border border-border bg-card px-7 py-3 text-sm font-semibold transition-all hover:border-primary/30">Read the docs</Link>
+        <Link href="/start" className="rounded-xl bg-primary px-7 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Get started</Link>
+        <Link href="/app" className="rounded-xl border border-border bg-card px-7 py-3 text-sm font-semibold transition-all hover:border-primary/30">Skip to app</Link>
       </div>
       <div className="grid w-full grid-cols-2 overflow-hidden rounded-[var(--radius)] border border-border bg-card shadow-sm sm:grid-cols-4">
         {stats.map((s, i) => (
@@ -84,65 +84,6 @@ function Steps() {
                 <p className="text-sm leading-relaxed text-muted-foreground">{s.body}</p>
               </div>
             </Card>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Concepts() {
-  const items = [
-    { title: "Baseline", body: "The premium default (gpt-4o) every saving is measured against. 'Saved' always means versus running everything on the baseline." },
-    { title: "Task type", body: "Each request is bucketed: code, math, structured, factual, or open. Routing is learned separately for each type." },
-    { title: "Explore vs exploit", body: "Explore means still learning a model. Exploit means using the one it has learned is best. New task types explore first, then settle." },
-    { title: "Quality, 0 to 1", body: "A score of how good the answer was, from objective checks for code and math, or a judge model for open-ended work." },
-    { title: "Measured savings", body: "Cost comes from the runtime's real per-call headers, not list prices. The savings you see are measured, not estimated." },
-    { title: "Reacts to price", body: "If a model's price moves, Arbiter notices, re-learns it, and re-routes. It is live arbitrage, not a one-time choice." },
-  ];
-  return (
-    <section className="border-t border-border bg-muted/30 py-24">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="mb-14 text-center">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-primary">The essentials</p>
-          <h2 className="text-3xl font-bold tracking-tight">Six words to read it fluently.</h2>
-          <p className="mx-auto mt-3 max-w-lg text-sm text-muted-foreground">These are the terms you will see across the dashboard. Learn them once and every screen reads cleanly.</p>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((f) => (
-            <Card key={f.title} className="gap-3 py-5">
-              <div className="px-6">
-                <h3 className="mb-1.5 text-sm font-semibold">{f.title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{f.body}</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function GoodToKnow() {
-  const items = [
-    { title: "Savings start near zero, then climb", body: "New task types explore every model first. That early phase is tuition; savings rise once it settles on the cheap-and-good model." },
-    { title: "Cheapest is not always chosen", body: "The rule is the cheapest model whose quality is within tolerance of the best. On hard tasks it correctly pays more." },
-    { title: "The most expensive model can score worst", body: "Some premium reasoning models spend a small token budget thinking and return nothing, so they score zero. More money can mean worse." },
-    { title: "One shared, permanent brain", body: "Learning is global and survives restarts, not per-user or per-session. Every request makes it smarter and cheaper for everyone." },
-  ];
-  return (
-    <section className="border-t border-border py-24">
-      <div className="mx-auto max-w-4xl px-6">
-        <div className="mb-14 text-center">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-primary">Good to know</p>
-          <h2 className="text-3xl font-bold tracking-tight">A few things that surprise people.</h2>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {items.map((f) => (
-            <div key={f.title} className="rounded-[var(--radius)] border border-border bg-card px-5 py-4 shadow-sm">
-              <h3 className="mb-1.5 text-sm font-semibold">{f.title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{f.body}</p>
-            </div>
           ))}
         </div>
       </div>
@@ -205,8 +146,6 @@ export default function LandingPage() {
       <Nav />
       <Hero />
       <Steps />
-      <Concepts />
-      <GoodToKnow />
       <WhyBtl />
       <CTA />
       <Footer />
