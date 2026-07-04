@@ -27,8 +27,15 @@ ALL_MODELS = [m.id for m in CANDIDATES] + [BASELINE.id]
 MIN_SAMPLES = 2          # tries per model before we trust its numbers
 EPSILON = 0.10           # steady-state chance of re-exploring
 QUALITY_TOLERANCE = 0.05  # how much quality we'll trade for a cheaper model
-PRICE_SHIFT = 0.75       # unit-price move that forces a model to be re-learned
+PRICE_SHIFT = 0.75       # relative unit-price move that always forces a re-learn
 MIN_TOKENS_FOR_PRICE = 40  # ignore price noise until enough tokens are observed
+# Variance-aware drift detection: once a model has this many priced calls, a move
+# that is both at least REL_FLOOR in relative size and Z_THRESHOLD standard
+# deviations from its own price history also triggers a re-learn - so a small but
+# consistent shift is caught early, while a noisy price series is not false-flagged.
+MIN_PRICE_SAMPLES = 5
+REL_FLOOR = 0.10
+Z_THRESHOLD = 4.0
 
 # Warm start: a public-benchmark quality prior is folded in as this many
 # pseudo-observations, so ~2 real calls outweigh it. A model that carries a prior
@@ -75,6 +82,13 @@ class Policy:
             self._db.execute("ALTER TABLE stats ADD COLUMN lat_sum REAL NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration for unit-price statistics (per-call cost/token), used by the
+        # variance-aware drift detector: count, sum and sum-of-squares.
+        for col in ("up_n", "up_sum", "up_sq"):
+            try:
+                self._db.execute(f"ALTER TABLE stats ADD COLUMN {col} REAL NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Client API keys minted at signup.
         self._db.execute(
             """CREATE TABLE IF NOT EXISTS keys (
@@ -288,48 +302,70 @@ class Policy:
                tokens: float = 0, latency: float = 0) -> dict | None:
         """Fold one observation into the model's stats for this task.
 
-        We watch the model's unit price (cost per token). If it moves more than
-        PRICE_SHIFT from what we'd learned, the old average is stale, so we wipe
-        this model's memory for the task - it drops back into exploration and is
-        re-learned at the new price, then re-routed accordingly. Returns a
-        description of the shift when one happens, else None.
+        We watch the model's unit price (cost per token) for drift. A move is a
+        shift if it is *either* large in relative terms (>= PRICE_SHIFT, the
+        original catch-all) *or* statistically significant against the model's own
+        price history (>= REL_FLOOR in size and >= Z_THRESHOLD sigma). On a shift
+        the stale average is wiped: the model drops back into exploration, is
+        re-learned at the new price, and re-routed. Returns the shift, else None.
         """
+        unit = (cost / tokens) if tokens > 0 else None
         with self._lock:
-            cur = self._db.execute(
-                "SELECT n, tok_sum, cost_sum FROM stats WHERE task=? AND model=?",
+            row = self._db.execute(
+                "SELECT n, tok_sum, cost_sum, up_n, up_sum, up_sq FROM stats WHERE task=? AND model=?",
                 (task, model),
-            )
-            row = cur.fetchone()
+            ).fetchone()
 
             shift = None
-            if (row and tokens > 0 and row[0] >= MIN_SAMPLES
+            if (unit is not None and row and row[0] >= MIN_SAMPLES
                     and row[1] >= MIN_TOKENS_FOR_PRICE):
-                learned_unit = row[2] / row[1]
-                new_unit = cost / tokens
-                if learned_unit > 0 and abs(new_unit - learned_unit) / learned_unit > PRICE_SHIFT:
-                    shift = {
-                        "task": task, "model": model,
-                        "old_unit": learned_unit, "new_unit": new_unit,
-                        "direction": "up" if new_unit > learned_unit else "down",
-                    }
+                learned_unit = row[2] / row[1] if row[1] else 0.0
+                up_n, up_sum, up_sq = row[3], row[4], row[5]
+                if learned_unit > 0:
+                    rel = abs(unit - learned_unit) / learned_unit
+                    big = rel >= PRICE_SHIFT
+                    significant = False
+                    if up_n >= MIN_PRICE_SAMPLES and rel >= REL_FLOOR:
+                        mean = up_sum / up_n
+                        var = max(up_sq / up_n - mean * mean, 0.0)
+                        std = var ** 0.5
+                        # A near-constant history: any REL_FLOOR-sized move is real.
+                        significant = std <= mean * 1e-6 or abs(unit - mean) / std >= Z_THRESHOLD
+                    if big or significant:
+                        shift = {
+                            "task": task, "model": model,
+                            "old_unit": learned_unit, "new_unit": unit,
+                            "direction": "up" if unit > learned_unit else "down",
+                        }
+
+            # Unit-price stats accumulate this observation (0 when no tokens).
+            u, u2 = (unit or 0.0), ((unit or 0.0) ** 2)
+            up_inc = 1 if unit is not None else 0
 
             if shift:
+                # Re-learn from scratch, seeded with this new-price observation.
                 self._db.execute("DELETE FROM stats WHERE task=? AND model=?", (task, model))
                 self._db.execute(
-                    "INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum, lat_sum) VALUES (?, ?, 1, ?, ?, ?, ?)",
-                    (task, model, quality, cost, tokens, latency),
+                    """INSERT INTO stats
+                       (task, model, n, q_sum, cost_sum, tok_sum, lat_sum, up_n, up_sum, up_sq)
+                       VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?)""",
+                    (task, model, quality, cost, tokens, latency, up_inc, u, u2),
                 )
             else:
                 self._db.execute(
-                    """INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum, lat_sum)
-                       VALUES (?, ?, 1, ?, ?, ?, ?)
+                    """INSERT INTO stats
+                       (task, model, n, q_sum, cost_sum, tok_sum, lat_sum, up_n, up_sum, up_sq)
+                       VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
                        ON CONFLICT(task, model) DO UPDATE SET
                            n = n + 1,
                            q_sum = q_sum + excluded.q_sum,
                            cost_sum = cost_sum + excluded.cost_sum,
                            tok_sum = tok_sum + excluded.tok_sum,
-                           lat_sum = lat_sum + excluded.lat_sum""",
-                    (task, model, quality, cost, tokens, latency),
+                           lat_sum = lat_sum + excluded.lat_sum,
+                           up_n = up_n + excluded.up_n,
+                           up_sum = up_sum + excluded.up_sum,
+                           up_sq = up_sq + excluded.up_sq""",
+                    (task, model, quality, cost, tokens, latency, up_inc, u, u2),
                 )
             self._db.commit()
             return shift
