@@ -1,6 +1,5 @@
 import json
 import time
-from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -49,13 +48,10 @@ UI_OUT = Path(__file__).resolve().parent.parent / "ui" / "out"
 async def lifespan(app: FastAPI):
     app.state.btl = BTLClient()
     app.state.policy = Policy()
-    # Small ring buffer of recent routing decisions, for the live dashboard feed.
-    app.state.recent = deque(maxlen=25)
-    # Price-shift alerts, and a demo multiplier to simulate a provider re-price.
-    app.state.alerts = deque(maxlen=25)
+    # The routing feed, price-shift alerts and classifier counters are now durable
+    # (stored in the policy DB) so the dashboard survives a restart. Only the
+    # demo price multiplier and the quarantine set stay in memory.
     app.state.price_mult = {}
-    # How each request's task type was decided.
-    app.state.classifier_counts = {"rules": 0, "model": 0, "model-fallback": 0}
     # Models temporarily skipped after an upstream error: {model: until_ts}.
     app.state.quarantine = {}
     yield
@@ -132,8 +128,7 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     policy: Policy = request.app.state.policy
     messages = payload["messages"]
     task, classified_by = await classify_smart(request.app.state.btl, messages)
-    counts = request.app.state.classifier_counts
-    counts[classified_by] = counts.get(classified_by, 0) + 1
+    policy.bump_counter(classified_by)
 
     # Capability guard: only consider models whose context window fits this
     # prompt (rough 4-chars-per-token estimate plus the requested reply room).
@@ -240,12 +235,12 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
 
     shift = policy.record(task.value, decision.model, quality.value, cost, tokens, latency)
     if shift:
-        request.app.state.alerts.appendleft({**shift, "ts": time.time()})
+        policy.add_alert({**shift, "ts": time.time()})
 
     baseline_cost = policy.baseline_cost(task.value)
     saved = round(baseline_cost - cost, 8) if baseline_cost is not None else None
 
-    request.app.state.recent.appendleft({
+    policy.add_event({
         "ts": time.time(),
         "task": task.value,
         "classified_by": classified_by,
@@ -360,10 +355,10 @@ def _stream(request: Request, payload, task, classified_by, eligible, prompt):
             shift = policy.record(task.value, decision.model, quality.value, c,
                                   0 if estimated else usage_tokens)
             if shift:
-                app_state.alerts.appendleft({**shift, "ts": time.time()})
+                policy.add_alert({**shift, "ts": time.time()})
             baseline_cost = policy.baseline_cost(task.value)
             saved = round(baseline_cost - c, 8) if baseline_cost is not None else None
-            app_state.recent.appendleft({
+            policy.add_event({
                 "ts": time.time(), "task": task.value, "classified_by": classified_by,
                 "model": decision.model, "mode": decision.mode,
                 "quality": round(quality.value, 3), "cost": c, "saved": saved,
@@ -403,8 +398,16 @@ async def policy_state(request: Request) -> dict:
 
 @app.get("/v1/recent")
 async def recent(request: Request) -> list:
-    """The most recent routing decisions, newest first."""
-    return list(request.app.state.recent)
+    """The most recent routing decisions, newest first (durable)."""
+    return request.app.state.policy.recent_events()
+
+
+@app.get("/v1/timeseries")
+async def timeseries(request: Request, bucket_seconds: int = 3600, buckets: int = 24) -> list:
+    """Calls and spend per time bucket over the recent window, for a trend line."""
+    buckets = max(1, min(buckets, 168))
+    bucket_seconds = max(60, min(bucket_seconds, 86400))
+    return request.app.state.policy.timeseries(bucket_seconds, buckets)
 
 
 @app.get("/v1/pricing")
@@ -450,16 +453,16 @@ async def overview(request: Request) -> dict:
     st = request.app.state
     return {
         "pool_size": len(ALL_MODELS),
-        "classifier": dict(st.classifier_counts),
-        "alerts": len(st.alerts),
+        "classifier": st.policy.counters(),
+        "alerts": st.policy.alert_count(),
         "active_price_overrides": st.price_mult,
     }
 
 
 @app.get("/v1/alerts")
 async def alerts(request: Request) -> list:
-    """Recent price-shift events that forced a model to be re-learned."""
-    return list(request.app.state.alerts)
+    """Recent price-shift events that forced a model to be re-learned (durable)."""
+    return request.app.state.policy.recent_alerts()
 
 
 @app.post("/v1/simulate-price", dependencies=[Depends(require_client)])
@@ -483,13 +486,10 @@ async def simulate_price(request: Request) -> dict:
 
 @app.post("/v1/reset", dependencies=[Depends(require_client)])
 async def reset(request: Request) -> dict:
-    """Clear learned state and the decision feed for a fresh demo run."""
+    """Clear learned state and the durable feed/alerts/counters for a fresh demo."""
     request.app.state.policy.reset()
-    request.app.state.recent.clear()
-    request.app.state.alerts.clear()
+    request.app.state.policy.clear_metrics()
     request.app.state.price_mult.clear()
-    for k in request.app.state.classifier_counts:
-        request.app.state.classifier_counts[k] = 0
     return {"status": "reset"}
 
 

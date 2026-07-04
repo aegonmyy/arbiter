@@ -10,6 +10,7 @@ Getting there needs data, so a new task type first explores - every candidate
 cost from the live runtime. After that we exploit the winner, with a small
 random exploration rate so shifting prices or models don't go unnoticed.
 """
+import json
 import random
 import sqlite3
 import threading
@@ -93,6 +94,26 @@ class Policy:
         )
         self._db.execute(
             "CREATE INDEX IF NOT EXISTS idx_usage_key_ts ON usage (key, ts)"
+        )
+        # Durable observability: the routing feed, price-shift alerts and the
+        # classifier counters used to live only in memory and vanished on every
+        # restart. Persisting them here keeps the dashboard populated across
+        # redeploys and lets us serve a savings/volume time series.
+        self._db.execute(
+            """CREATE TABLE IF NOT EXISTS feed (
+                   ts REAL, task TEXT, classified_by TEXT, model TEXT, mode TEXT,
+                   quality REAL, cost REAL, saved REAL, failover_from TEXT
+               )"""
+        )
+        self._db.execute("CREATE INDEX IF NOT EXISTS idx_feed_ts ON feed (ts)")
+        self._db.execute(
+            """CREATE TABLE IF NOT EXISTS alerts (
+                   ts REAL, task TEXT, model TEXT,
+                   old_unit REAL, new_unit REAL, direction TEXT
+               )"""
+        )
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)"
         )
         self._db.commit()
 
@@ -368,3 +389,97 @@ class Policy:
                 "avg_latency_ms": round(lat_sum / n * 1000) if n and lat_sum else None,
             })
         return tasks
+
+    # -- durable metrics ---------------------------------------------------
+    FEED_KEEP = 500   # rows of routing feed to retain
+    ALERTS_KEEP = 100  # rows of price-shift alerts to retain
+
+    def add_event(self, ev: dict) -> None:
+        """Persist one routing decision to the feed (newest kept, old pruned)."""
+        with self._lock:
+            self._db.execute(
+                """INSERT INTO feed
+                   (ts, task, classified_by, model, mode, quality, cost, saved, failover_from)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (ev["ts"], ev["task"], ev["classified_by"], ev["model"], ev["mode"],
+                 ev["quality"], ev["cost"], ev.get("saved"),
+                 json.dumps(ev.get("failover_from")) if ev.get("failover_from") else None),
+            )
+            self._db.execute(
+                "DELETE FROM feed WHERE rowid NOT IN "
+                "(SELECT rowid FROM feed ORDER BY ts DESC LIMIT ?)", (self.FEED_KEEP,))
+            self._db.commit()
+
+    def recent_events(self, limit: int = 25) -> list[dict]:
+        cur = self._db.execute(
+            """SELECT ts, task, classified_by, model, mode, quality, cost, saved, failover_from
+               FROM feed ORDER BY ts DESC LIMIT ?""", (limit,))
+        out = []
+        for r in cur.fetchall():
+            out.append({
+                "ts": r[0], "task": r[1], "classified_by": r[2], "model": r[3],
+                "mode": r[4], "quality": r[5], "cost": r[6], "saved": r[7],
+                "failover_from": json.loads(r[8]) if r[8] else None,
+            })
+        return out
+
+    def add_alert(self, a: dict) -> None:
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO alerts (ts, task, model, old_unit, new_unit, direction) VALUES (?, ?, ?, ?, ?, ?)",
+                (a.get("ts", time.time()), a["task"], a["model"],
+                 a["old_unit"], a["new_unit"], a["direction"]))
+            self._db.execute(
+                "DELETE FROM alerts WHERE rowid NOT IN "
+                "(SELECT rowid FROM alerts ORDER BY ts DESC LIMIT ?)", (self.ALERTS_KEEP,))
+            self._db.commit()
+
+    def recent_alerts(self, limit: int = 25) -> list[dict]:
+        cur = self._db.execute(
+            "SELECT ts, task, model, old_unit, new_unit, direction FROM alerts ORDER BY ts DESC LIMIT ?",
+            (limit,))
+        return [{"ts": r[0], "task": r[1], "model": r[2], "old_unit": r[3],
+                 "new_unit": r[4], "direction": r[5]} for r in cur.fetchall()]
+
+    def alert_count(self) -> int:
+        return self._db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+
+    def bump_counter(self, name: str) -> None:
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO counters (name, value) VALUES (?, 1) "
+                "ON CONFLICT(name) DO UPDATE SET value = value + 1", (name,))
+            self._db.commit()
+
+    def counters(self) -> dict:
+        cur = self._db.execute("SELECT name, value FROM counters")
+        d = {r[0]: r[1] for r in cur.fetchall()}
+        for k in ("rules", "model", "model-fallback"):
+            d.setdefault(k, 0)
+        return d
+
+    def timeseries(self, bucket_seconds: int = 3600, buckets: int = 24) -> list[dict]:
+        """Calls and spend per time bucket over the recent window, oldest first,
+        for a dashboard trend line. Bounded by what the feed retains."""
+        now = time.time()
+        start = now - bucket_seconds * buckets
+        cur = self._db.execute("SELECT ts, cost FROM feed WHERE ts >= ?", (start,))
+        agg: dict[int, dict] = {}
+        for ts, cost in cur.fetchall():
+            b = int((ts - start) // bucket_seconds)
+            if b < 0 or b >= buckets:
+                continue
+            a = agg.setdefault(b, {"calls": 0, "spend": 0.0})
+            a["calls"] += 1
+            a["spend"] += cost or 0.0
+        return [{
+            "bucket_start": round(start + i * bucket_seconds),
+            "calls": agg.get(i, {}).get("calls", 0),
+            "spend": round(agg.get(i, {}).get("spend", 0.0), 8),
+        } for i in range(buckets)]
+
+    def clear_metrics(self) -> None:
+        with self._lock:
+            for t in ("feed", "alerts", "counters"):
+                self._db.execute(f"DELETE FROM {t}")
+            self._db.commit()
