@@ -13,21 +13,29 @@ def _responder(fail: set[str]):
 
 
 def test_failover_routes_around_a_broken_model(make_client):
-    # The first-choice model (least sampled) errors; the request should still
-    # succeed on a fallback model rather than returning the error.
-    fake = FakeBTL(_responder(fail={"deepseek-v4-flash"}))
+    # The first-choice model errors; the request should still succeed on a
+    # fallback rather than returning the error. Probe the first choice on an
+    # empty store, reset, then break exactly that model (robust to prior order).
+    fake = FakeBTL()
     client, app = make_client(fake)
+    body = chat_body("calculate 2+2")
 
-    r = client.post("/v1/chat/completions", json=chat_body("calculate 2+2"), headers=AUTH)
+    first = client.post("/v1/chat/completions", json=body, headers=AUTH).json()["arbiter"]["model"]
+    app.state.policy.reset()
+    app.state.quarantine.clear()
+    fake.calls.clear()
+    fake.responder = _responder(fail={first})
+
+    r = client.post("/v1/chat/completions", json=body, headers=AUTH)
     assert r.status_code == 200, r.text
     arb = r.json()["arbiter"]
-    assert arb["model"] != "deepseek-v4-flash"
-    assert arb["failover_from"] == ["deepseek-v4-flash"]
+    assert arb["model"] != first
+    assert arb["failover_from"] == [first]
     # The broken model was tried first, then a fallback served.
-    assert fake.calls[0] == "deepseek-v4-flash"
+    assert fake.calls[0] == first
     assert len(fake.calls) == 2
     # And it is now quarantined so later requests skip it up front.
-    assert "deepseek-v4-flash" in app.state.quarantine
+    assert first in app.state.quarantine
 
 
 def test_all_attempts_failing_surfaces_the_upstream_error(make_client):

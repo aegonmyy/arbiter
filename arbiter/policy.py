@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass
 
 from .models import BASELINE, CANDIDATES
+from .priors import has_prior, prior_quality
 
 # Every model the policy may pick, baseline included - sometimes the expensive
 # model really is the only one good enough, and that's a valid choice.
@@ -27,6 +28,12 @@ EPSILON = 0.10           # steady-state chance of re-exploring
 QUALITY_TOLERANCE = 0.05  # how much quality we'll trade for a cheaper model
 PRICE_SHIFT = 0.75       # unit-price move that forces a model to be re-learned
 MIN_TOKENS_FOR_PRICE = 40  # ignore price noise until enough tokens are observed
+
+# Warm start: a public-benchmark quality prior is folded in as this many
+# pseudo-observations, so ~2 real calls outweigh it. A model that carries a prior
+# only needs one real sample (to learn its cost) before it can be exploited - the
+# prior supplies the quality - which is where cold-start tuition is really spent.
+PRIOR_STRENGTH = 1.5
 
 
 @dataclass
@@ -187,6 +194,17 @@ class Policy:
         n, _, mean_cost = self._mean(task, model)
         return mean_cost if n else None
 
+    def _blended_quality(self, task: str, model: str) -> float | None:
+        """Quality estimate used for routing: the measured mean blended with the
+        public-benchmark prior via pseudo-counts, so the prior anchors early,
+        noisy estimates and decays out as real samples accumulate. Returns None
+        only when there is neither data nor a prior."""
+        n, q_sum, _ = self._row(task, model)
+        prior = prior_quality(task, model)
+        if prior is None:
+            return (q_sum / n) if n else None
+        return (PRIOR_STRENGTH * prior + q_sum) / (PRIOR_STRENGTH + n)
+
     # -- decision ----------------------------------------------------------
     def choose(self, task: str, allowed: list[str] | None = None) -> Decision:
         # `allowed` is the set of models eligible for this request (e.g. those
@@ -198,11 +216,18 @@ class Policy:
         with self._lock:
             samples = {m: self._row(task, m)[0] for m in pool}
 
-            # 1. Explore: anything not yet sampled enough. Pick the least-tried
-            #    so exploration spreads evenly.
-            under = [m for m in pool if samples[m] < MIN_SAMPLES]
+            # 1. Explore: anything not yet sampled enough. A model that carries a
+            #    public-benchmark prior only needs one real sample (to learn its
+            #    cost) - the prior already supplies a quality estimate - so it
+            #    leaves exploration sooner. Pick the least-tried first (prior
+            #    quality breaks ties) so exploration spreads and surfaces likely
+            #    winners early.
+            def need(m: str) -> int:
+                return 1 if has_prior(m) else MIN_SAMPLES
+
+            under = [m for m in pool if samples[m] < need(m)]
             if under:
-                pick = min(under, key=lambda m: samples[m])
+                pick = min(under, key=lambda m: (samples[m], -(prior_quality(task, m) or 0.0)))
                 return Decision(pick, "explore", "gathering baseline data")
 
             # 2. Occasionally re-explore so the policy stays current.
@@ -211,12 +236,11 @@ class Policy:
                 return Decision(pick, "explore", "epsilon re-check")
 
             # 3. Exploit: cheapest model within tolerance of the best quality.
-            means = {m: self._mean(task, m) for m in pool}
-            best_q = max(mq for _, mq, _ in means.values())
-            acceptable = {
-                m: mc for m, (_, mq, mc) in means.items()
-                if mq >= best_q - QUALITY_TOLERANCE
-            }
+            #    Quality is the measured mean blended with the benchmark prior.
+            quality = {m: (self._blended_quality(task, m) or 0.0) for m in pool}
+            cost = {m: self._mean(task, m)[2] for m in pool}
+            best_q = max(quality.values())
+            acceptable = {m: cost[m] for m in pool if quality[m] >= best_q - QUALITY_TOLERANCE}
             pick = min(acceptable, key=acceptable.get)
             return Decision(
                 pick, "exploit",
