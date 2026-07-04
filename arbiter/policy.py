@@ -115,6 +115,40 @@ class Policy:
             self._db.commit()
 
     # -- reporting ---------------------------------------------------------
+    def report(self) -> dict:
+        """Cumulative savings vs. running everything on the baseline.
+
+        Actual spend is exact (summed runtime charges). The baseline-equivalent
+        is each call re-priced at the baseline's measured mean cost for its task
+        type, so savings are grounded in real numbers, not list prices. Tasks
+        where we haven't sampled the baseline claim no savings."""
+        cur = self._db.execute("SELECT task, model, n, cost_sum FROM stats")
+        base_mean: dict[str, float] = {}
+        task_calls: dict[str, int] = {}
+        task_spend: dict[str, float] = {}
+        for task, model, n, cost_sum in cur.fetchall():
+            task_calls[task] = task_calls.get(task, 0) + n
+            task_spend[task] = task_spend.get(task, 0.0) + cost_sum
+            if model == BASELINE.id and n:
+                base_mean[task] = cost_sum / n
+
+        actual = sum(task_spend.values())
+        baseline_equiv = 0.0
+        for task, calls in task_calls.items():
+            if task in base_mean:
+                baseline_equiv += calls * base_mean[task]
+            else:
+                baseline_equiv += task_spend[task]  # no baseline data -> no claim
+        saved = baseline_equiv - actual
+        pct = (saved / baseline_equiv * 100) if baseline_equiv else 0.0
+        return {
+            "calls": sum(task_calls.values()),
+            "actual_spend": round(actual, 8),
+            "baseline_spend": round(baseline_equiv, 8),
+            "saved": round(saved, 8),
+            "saved_pct": round(pct, 1),
+        }
+
     def snapshot(self) -> dict:
         cur = self._db.execute(
             "SELECT task, model, n, q_sum, cost_sum FROM stats ORDER BY task, model"
