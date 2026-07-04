@@ -2,7 +2,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useAlerts } from "@/lib/api";
 
-function PriceAlerts() {
+export function PriceAlerts() {
   const { data } = useAlerts();
   return (
     <Card className="gap-2 py-5">
@@ -21,7 +21,7 @@ function PriceAlerts() {
   );
 }
 
-function HowItWorks() {
+export function HowItWorks() {
   const items = [
     ["Classify", "rules first; a free model when ambiguous."],
     ["Filter", "only models whose context fits are eligible."],
@@ -45,7 +45,7 @@ function HowItWorks() {
   );
 }
 
-function Baseline() {
+export function Baseline() {
   const rows = [
     ["Premium default", "gpt-4o"],
     ["Quality tolerance", "0.05"],

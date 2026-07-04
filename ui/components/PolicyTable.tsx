@@ -17,7 +17,8 @@ function TaskTable({ task, rows }: { task: string; rows: PolicyRow[] }) {
   return (
     <div>
       <div className="mb-1 mt-3 text-[0.8rem] font-semibold capitalize">{task}</div>
-      <table className="w-full text-[0.79rem]">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[26rem] text-[0.79rem]">
         <thead>
           <tr className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">
             <th className="py-1.5 pr-2 text-left font-medium">Model</th>
@@ -46,6 +47,7 @@ function TaskTable({ task, rows }: { task: string; rows: PolicyRow[] }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
