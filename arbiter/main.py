@@ -7,7 +7,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from .btl import BTLClient
-from .classify import classify, _last_user_text
+from .classify import _last_user_text
+from .classifier import classify_smart
 from .judge import judge
 from .models import fits
 from .policy import ALL_MODELS, Policy
@@ -51,7 +52,7 @@ async def chat_completions(request: Request):
 
     policy: Policy = request.app.state.policy
     messages = payload["messages"]
-    task = classify(messages)
+    task, classified_by = await classify_smart(request.app.state.btl, messages)
 
     # Capability guard: only consider models whose context window fits this
     # prompt (rough 4-chars-per-token estimate plus the requested reply room).
@@ -107,6 +108,7 @@ async def chat_completions(request: Request):
     body = completion.body
     body["arbiter"] = {
         "task": task.value,
+        "classified_by": classified_by,
         "model": decision.model,
         "mode": decision.mode,
         "reason": decision.reason,

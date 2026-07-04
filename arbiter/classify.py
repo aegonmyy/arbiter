@@ -51,12 +51,13 @@ def _last_user_text(messages: list[dict]) -> str:
     return ""
 
 
-def classify(messages: list[dict]) -> TaskType:
+def rules_classify(messages: list[dict]) -> TaskType | None:
+    """Fast, deterministic bucketing. Returns None when no pattern matches —
+    i.e. the request is ambiguous and worth a second opinion."""
     text = _last_user_text(messages)
 
     # Order matters: code and structured are the most distinctive, so check
-    # them first. Short question-shaped prompts fall through to factual, and
-    # anything else is treated as open-ended generation.
+    # them first. Short question-shaped prompts fall through to factual.
     if _CODE_HINTS.search(text):
         return TaskType.CODE
     if _STRUCTURED_HINTS.search(text):
@@ -65,4 +66,9 @@ def classify(messages: list[dict]) -> TaskType:
         return TaskType.MATH
     if _FACTUAL_HINTS.search(text) and len(text) < 200:
         return TaskType.FACTUAL
-    return TaskType.OPEN
+    return None
+
+
+def classify(messages: list[dict]) -> TaskType:
+    """Rules-only classification; ambiguous prompts default to open."""
+    return rules_classify(messages) or TaskType.OPEN
