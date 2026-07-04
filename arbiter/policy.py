@@ -5,7 +5,7 @@ model whose measured quality is within a small tolerance of the best model we've
 seen for this task. Cheap-but-good wins; we only pay up when nothing cheap is
 good enough.
 
-Getting there needs data, so a new task type first explores — every candidate
+Getting there needs data, so a new task type first explores - every candidate
 (including the premium baseline) is tried a few times to learn its quality and
 cost from the live runtime. After that we exploit the winner, with a small
 random exploration rate so shifting prices or models don't go unnoticed.
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from .models import BASELINE, CANDIDATES
 
-# Every model the policy may pick, baseline included — sometimes the expensive
+# Every model the policy may pick, baseline included - sometimes the expensive
 # model really is the only one good enough, and that's a valid choice.
 ALL_MODELS = [m.id for m in CANDIDATES] + [BASELINE.id]
 
@@ -91,7 +91,7 @@ class Policy:
         # `allowed` is the set of models eligible for this request (e.g. those
         # whose context window fits the prompt). We only ever pick from it.
         pool = [m for m in ALL_MODELS if allowed is None or m in allowed]
-        if not pool:                      # nothing fits — fall back to all
+        if not pool:                      # nothing fits - fall back to all
             pool = list(ALL_MODELS)
 
         with self._lock:
@@ -129,7 +129,7 @@ class Policy:
 
         We watch the model's unit price (cost per token). If it moves more than
         PRICE_SHIFT from what we'd learned, the old average is stale, so we wipe
-        this model's memory for the task — it drops back into exploration and is
+        this model's memory for the task - it drops back into exploration and is
         re-learned at the new price, then re-routed accordingly. Returns a
         description of the shift when one happens, else None.
         """
@@ -173,7 +173,7 @@ class Policy:
             return shift
 
     def reset(self) -> None:
-        """Wipe learned state — handy for a clean demo run."""
+        """Wipe learned state - handy for a clean demo run."""
         with self._lock:
             self._db.execute("DELETE FROM stats")
             self._db.commit()

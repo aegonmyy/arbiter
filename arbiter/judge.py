@@ -3,7 +3,7 @@
 Code, math and structured answers get graded by a real check. Everything else
 has no ground truth, so we ask one capable model to rate the answer. To keep
 this from becoming a cost on every request, the caller only judges while it's
-exploring a task type — once a model's quality is known, exploitation reuses
+exploring a task type - once a model's quality is known, exploitation reuses
 the learned number instead of paying for another judgement.
 """
 import re

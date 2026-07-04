@@ -79,7 +79,7 @@ export default function Playground() {
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <Card className="gap-3 py-5">
-        <CardHeader className="pb-0"><CardTitle>Try it — route a prompt</CardTitle></CardHeader>
+        <CardHeader className="pb-0"><CardTitle>Try it - route a prompt</CardTitle></CardHeader>
         <CardContent className="space-y-3 pt-1">
           <div className="flex flex-wrap gap-2">
             {EXAMPLES.map((e) => (
@@ -93,12 +93,12 @@ export default function Playground() {
           <textarea id="pg" value={prompt} onChange={(e) => setPrompt(e.target.value)}
             rows={5} spellCheck={false}
             className="w-full resize-y rounded-2xl border border-border bg-background px-4 py-3 font-mono text-sm outline-none focus:border-primary/50"
-            placeholder="Ask anything…" />
+            placeholder="Ask anything..." />
           <button onClick={run} disabled={loading || !prompt.trim()}
             className="min-h-11 w-full rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
-            {loading ? "Routing…" : "Route it"}
+            {loading ? "Routing..." : "Route it"}
           </button>
-          <p className="text-[11px] text-muted-foreground">The model field is ignored — Arbiter picks. Sends a real request through the runtime.</p>
+          <p className="text-[11px] text-muted-foreground">The model field is ignored - Arbiter picks. Sends a real request through the runtime.</p>
         </CardContent>
       </Card>
 
@@ -122,13 +122,13 @@ export default function Playground() {
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <Field label="Task" hint="what kind of request, and how it was detected">
-                  <span className="capitalize">{result.task}</span> <span className="text-muted-foreground">· {result.classified_by}</span></Field>
-                <Field label="Mode" hint="explore = still learning · exploit = using what it learned">
+                  <span className="capitalize">{result.task}</span> <span className="text-muted-foreground">- {result.classified_by}</span></Field>
+                <Field label="Mode" hint="explore = still learning - exploit = using what it learned">
                   <span className={cn(result.mode === "exploit" ? "text-secondary" : "text-primary")}>{result.mode}</span></Field>
-                <Field label="Quality" hint="0–1 score of the answer">{result.quality?.toFixed(2)}</Field>
+                <Field label="Quality" hint="0-1 score of the answer">{result.quality?.toFixed(2)}</Field>
                 <Field label="Cost" hint="what this call actually cost">{money(result.cost)}</Field>
                 <Field label="Saved" hint="vs the premium baseline (gpt-4o)">
-                  {result.saved != null && result.saved > 0 ? <span className="text-secondary">−{money(result.saved)}</span> : "—"}</Field>
+                  {result.saved != null && result.saved > 0 ? <span className="text-secondary">-{money(result.saved)}</span> : "-"}</Field>
                 <Field label="Eligible" hint="models whose context fit this prompt">{result.eligible_models} models</Field>
               </div>
               <div>

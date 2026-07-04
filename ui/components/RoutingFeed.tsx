@@ -13,7 +13,7 @@ function Row({ d }: { d: Decision }) {
       <span className={cn("rounded-lg px-2 py-0.5 text-[0.63rem] font-semibold uppercase tracking-wide",
         exploit ? "bg-secondary/15 text-secondary" : "bg-primary/12 text-primary")}>{d.mode}</span>
       {d.saved != null && d.saved > 0
-        ? <span className="text-[0.78rem] font-semibold text-secondary">−{money(d.saved)}</span>
+        ? <span className="text-[0.78rem] font-semibold text-secondary">-{money(d.saved)}</span>
         : <span className="text-[0.75rem] text-muted-foreground">{money(d.cost)}</span>}
     </div>
   );
@@ -28,7 +28,7 @@ export default function RoutingFeed() {
         {!data
           ? <div className="space-y-2">{[0, 1, 2, 3].map((i) => <div key={i} className="h-11 rounded-2xl border border-border bg-muted shimmer" />)}</div>
           : data.length === 0
-            ? <p className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">Waiting for traffic…</p>
+            ? <p className="rounded-2xl border border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">Waiting for traffic...</p>
             : <div className="flex max-h-[22rem] flex-col gap-2 overflow-y-auto">{data.map((d, i) => <Row key={`${d.ts}-${i}`} d={d} />)}</div>}
       </CardContent>
     </Card>

@@ -4,7 +4,7 @@ A drop-in, OpenAI-compatible router that sends each request to the best
 model-for-the-money instead of paying premium prices for every call.
 
 You point your existing OpenAI client at Arbiter, keep your code exactly as it
-is, and Arbiter forwards the request to the Bad Theory Labs runtime — picking a
+is, and Arbiter forwards the request to the Bad Theory Labs runtime - picking a
 model per request based on what actually works for that kind of task and what it
 costs. It reads the runtime's cost headers on every response, so the savings are
 measured, not guessed.

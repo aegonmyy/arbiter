@@ -1,5 +1,5 @@
-# One image that builds the Next.js UI to a static export and serves it — plus
-# the API — from a single FastAPI process. One repo, one service, one URL.
+# One image that builds the Next.js UI to a static export and serves it - plus
+# the API - from a single FastAPI process. One repo, one service, one URL.
 
 # ---- Stage 1: build the UI to a static export ----
 FROM node:20-slim AS ui

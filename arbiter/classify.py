@@ -52,7 +52,7 @@ def _last_user_text(messages: list[dict]) -> str:
 
 
 def rules_classify(messages: list[dict]) -> TaskType | None:
-    """Fast, deterministic bucketing. Returns None when no pattern matches —
+    """Fast, deterministic bucketing. Returns None when no pattern matches -
     i.e. the request is ambiguous and worth a second opinion."""
     text = _last_user_text(messages)
 

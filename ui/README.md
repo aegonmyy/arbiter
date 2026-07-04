@@ -1,6 +1,6 @@
 # Arbiter UI
 
-The dashboard for Arbiter — a Next.js app on the same StreamWage design system
+The dashboard for Arbiter - a Next.js app on the same StreamWage design system
 (indigo/teal, Geist, large radius), with a proper light/dark toggle and live
 charts.
 
@@ -29,7 +29,7 @@ ARBITER_BACKEND=http://my-host:8000 npm run dev
 
 ## Layout
 
-- `app/` — layout, global tokens, and the page.
-- `components/` — Header, Hero (with the integration snippet), StatsBar,
+- `app/` - layout, global tokens, and the page.
+- `components/` - Header, Hero (with the integration snippet), StatsBar,
   MiniStats, SavingsChart (recharts), RoutingFeed, PolicyTable, RightRail.
-- `lib/api.ts` — typed SWR hooks over the Arbiter endpoints.
+- `lib/api.ts` - typed SWR hooks over the Arbiter endpoints.

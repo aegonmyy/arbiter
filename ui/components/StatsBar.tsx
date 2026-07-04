@@ -52,9 +52,9 @@ export default function StatsBar() {
       <Stat label="Saved vs baseline" value={data?.saved_pct} render={(v) => v.toFixed(1) + "%"}
         sub="cheaper than always-baseline" className="text-secondary" />
       <Stat label="Total saved" value={data?.saved} render={bigMoney}
-        sub={proj != null ? `≈ ${bigMoney(proj)} per 1M requests` : "measuring…"} />
+        sub={proj != null ? `~ ${bigMoney(proj)} per 1M requests` : "measuring..."} />
       <Stat label="Actual spend" value={data?.actual_spend} render={bigMoney}
-        sub={data ? `vs ${bigMoney(data.baseline_spend)} on baseline` : "—"} />
+        sub={data ? `vs ${bigMoney(data.baseline_spend)} on baseline` : "-"} />
       <Stat label="Calls routed" value={data?.calls} render={(v) => Math.round(v).toLocaleString()}
         sub="across all task types" className="text-primary" />
     </section>

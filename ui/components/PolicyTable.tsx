@@ -37,7 +37,7 @@ function TaskTable({ task, rows }: { task: string; rows: PolicyRow[] }) {
                 <td className="py-1.5 px-2 tabular-nums">{r.n}</td>
                 <td className="py-1.5 px-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-8 tabular-nums">{r.quality == null ? "—" : r.quality.toFixed(2)}</span>
+                    <span className="w-8 tabular-nums">{r.quality == null ? "-" : r.quality.toFixed(2)}</span>
                     <span className="h-1.5 flex-1 overflow-hidden rounded bg-muted"><span className="block h-full bg-secondary" style={{ width: `${w}%` }} /></span>
                   </div>
                 </td>

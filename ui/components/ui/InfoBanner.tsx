@@ -31,7 +31,7 @@ export function InfoBanner({ storageKey, children, className }: {
       <p className="flex-1 text-sm leading-relaxed text-foreground/80">{children}</p>
       <button onClick={dismiss} aria-label="Dismiss"
         className="mt-0.5 flex-shrink-0 text-lg leading-none text-muted-foreground/50 transition-colors hover:text-muted-foreground">
-        ×
+        x
       </button>
     </div>
   );

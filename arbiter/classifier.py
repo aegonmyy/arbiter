@@ -1,12 +1,12 @@
 """Hybrid task classification: fast rules first, a free model on doubt.
 
 Clear-cut prompts (a code fence, `calculate 5*5`) are handled instantly by the
-rules — no network call. Only when the rules can't tell do we ask a small free
+rules - no network call. Only when the rules can't tell do we ask a small free
 model to read the prompt. If that call fails for any reason we fall back to
 treating it as open-ended, so classification never breaks the request.
 
 The model here (deepseek-v4-flash) is currently $0 per call on the runtime and,
-unlike some free models, isn't a reasoning model — so it emits the answer word
+unlike some free models, isn't a reasoning model - so it emits the answer word
 directly instead of spending its budget thinking. If its price ever changes,
 the price-shift machinery already notices; we route it through BTL like
 everything else.
@@ -34,7 +34,7 @@ async def classify_smart(btl: BTLClient, messages: list[dict]) -> tuple[TaskType
     if hit is not None:
         return hit, "rules"
 
-    # Ambiguous — ask the free model.
+    # Ambiguous - ask the free model.
     try:
         completion = await btl.chat({
             "model": CLASSIFIER_MODEL,

@@ -17,35 +17,38 @@ This document is the map. For the reasoning behind each stage, see
 Every chat request flows through the same six stages:
 
 ```
-        OpenAI-compatible request
-                 │
-                 ▼
-   ┌───────────────────────────┐
-   │ 1. CLASSIFY               │  rules first; a free model when ambiguous
-   │    classifier.py          │  → task type (code/math/structured/…)
-   ├───────────────────────────┤
-   │ 2. FILTER                 │  drop models whose context can't hold
-   │    models.py: fits        │  the prompt → eligible set
-   ├───────────────────────────┤
-   │ 3. ROUTE                  │  explore new models, else exploit the
-   │    policy.py: choose      │  cheapest within tolerance of the best
-   ├───────────────────────────┤
-   │ 4. CALL                   │  send chosen model to the runtime,
-   │    btl.py: chat           │  capture answer + cost headers
-   ├───────────────────────────┤
-   │ 5. GRADE                  │  objective check, or the judge for
-   │    scoring.py / judge.py  │  open-ended tasks → quality 0..1
-   ├───────────────────────────┤
-   │ 6. LEARN / REACT          │  fold cost + quality into the policy;
-   │    policy.py: record      │  a price move re-opens exploration
-   └───────────────────────────┘
-                 │
-                 ▼
-      answer + arbiter metadata
+  OpenAI-compatible request
+            |
+            v
+  1. CLASSIFY    (classifier.py)      rules first; a free model when ambiguous
+                                      -> task type: code / math / structured / factual / open
+            |
+            v
+  2. FILTER      (models.py: fits)    drop any model whose context cannot hold the
+                                      prompt -> the eligible set
+            |
+            v
+  3. ROUTE       (policy.py: choose)  explore new models, else exploit the cheapest
+                                      one within tolerance of the best
+            |
+            v
+  4. CALL        (btl.py: chat)       send the chosen model to the runtime; capture
+                                      the answer and the cost headers
+            |
+            v
+  5. GRADE       (scoring / judge)    objective check, or the judge for open-ended
+                                      tasks -> a quality score from 0 to 1
+            |
+            v
+  6. LEARN/REACT (policy.py: record)  fold cost and quality into the policy; a price
+                                      move re-opens exploration
+            |
+            v
+  answer + arbiter metadata
 ```
 
-Stages 1–3 are free and fast (no model call, except the ambiguous-classify
-case). The paid work is stage 4 — and, during exploration only, stage 5's judge.
+Stages 1-3 are free and fast (no model call, except the ambiguous-classify
+case). The paid work is stage 4 - and, during exploration only, stage 5's judge.
 
 ## The request lifecycle, end to end
 
@@ -53,7 +56,7 @@ This is what happens for a single `POST /v1/chat/completions`, and where each
 step lives in the code (`main.py:chat_completions` orchestrates it):
 
 1. **Parse.** The request must contain `messages`. The `model` field the caller
-   sent is intentionally ignored — choosing the model is Arbiter's job.
+   sent is intentionally ignored - choosing the model is Arbiter's job.
 2. **Classify** (`classifier.py:classify_smart`). Rules bucket the request
    instantly; if none match, a free model reads it. Result: a task type plus how
    it was decided (`rules` / `model` / `model-fallback`).
@@ -61,14 +64,14 @@ step lives in the code (`main.py:chat_completions` orchestrates it):
    (~4 chars per token plus the requested `max_tokens`) and keep only models
    whose context window fits. This is a correctness guard, ahead of cost.
 4. **Route** (`policy.py:choose`). Given the task and the eligible set, the
-   policy returns a `Decision` — a model, a mode (`explore`/`exploit`), and a
+   policy returns a `Decision` - a model, a mode (`explore`/`exploit`), and a
    human-readable reason.
 5. **Call** (`btl.py:chat`). The chosen model id is written into the payload and
    sent to the runtime. The response comes back with the answer and the cost
    headers parsed into a `Cost`.
 6. **Grade** (`scoring.py:score`, `judge.py:judge`). Objective tasks are checked
    directly (code parses, arithmetic matches, JSON is valid). Open-ended tasks
-   get a neutral score here and are sent to the judge — but only while exploring;
+   get a neutral score here and are sent to the judge - but only while exploring;
    in exploit mode the learned quality is reused.
 7. **Learn / react** (`policy.py:record`). The measured cost and quality are
    folded into the policy. If the model's cost-per-token has moved beyond the
@@ -96,12 +99,12 @@ step lives in the code (`main.py:chat_completions` orchestrates it):
 
 Arbiter keeps two kinds of state:
 
-- **Learned policy — on disk, shared, persistent.** The per-task, per-model
+- **Learned policy - on disk, shared, persistent.** The per-task, per-model
   quality and cost stats live in a SQLite database (`data/arbiter.db`). There is
   one shared brain: every request reads from and writes to it, regardless of who
   sent the request or in what session, and it survives restarts. There is no
   per-user or per-session isolation.
-- **Live feeds — in memory, ephemeral.** The recent-decisions feed, the
+- **Live feeds - in memory, ephemeral.** The recent-decisions feed, the
   price-shift alerts, the classifier counters, and the demo price multipliers
   live in `app.state` and reset when the process restarts.
 
@@ -109,12 +112,12 @@ Arbiter keeps two kinds of state:
 
 BTL is load-bearing in four distinct places, not one:
 
-1. **Answering requests** — the routed model call (`btl.py:chat`).
-2. **Classifying** — the free model used for ambiguous prompts
+1. **Answering requests** - the routed model call (`btl.py:chat`).
+2. **Classifying** - the free model used for ambiguous prompts
    (`classifier.py`).
-3. **Judging** — the quality rater for open-ended tasks, during exploration
+3. **Judging** - the quality rater for open-ended tasks, during exploration
    (`judge.py`).
-4. **Measuring and reacting to cost** — the `x-btl-*` headers drive both the
+4. **Measuring and reacting to cost** - the `x-btl-*` headers drive both the
    savings figures and the price-shift detector (`btl.py:Cost`,
    `policy.py:record`).
 

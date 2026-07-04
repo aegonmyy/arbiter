@@ -70,7 +70,7 @@ async def chat_completions(request: Request):
 
     decision = policy.choose(task.value, allowed=eligible)
 
-    # The client's requested model is ignored on purpose — choosing the model
+    # The client's requested model is ignored on purpose - choosing the model
     # is the whole point of Arbiter. We keep every other parameter as-is.
     payload["model"] = decision.model
     try:
@@ -93,7 +93,7 @@ async def chat_completions(request: Request):
     quality = score(task, prompt, completion.text)
 
     # For tasks with no objective check, get a real quality signal from the
-    # judge — but only while exploring. Once we've learned a model's quality,
+    # judge - but only while exploring. Once we've learned a model's quality,
     # exploitation reuses it so steady-state traffic stays cheap.
     if not quality.objective:
         if decision.mode == "explore":

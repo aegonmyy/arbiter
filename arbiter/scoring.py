@@ -1,7 +1,7 @@
 """Score how good an answer is, on a 0..1 scale.
 
 The router can only prefer a cheaper model if it can tell whether that model
-actually did the job. Where a task has an objective check we use it — those
+actually did the job. Where a task has an objective check we use it - those
 signals are free and trustworthy. For open-ended tasks there's no ground truth,
 so we fall back to a judge model (one strong model rating the answer), and if no
 judge is wired in we stay neutral rather than guess.

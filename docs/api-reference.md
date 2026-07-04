@@ -24,7 +24,7 @@ served by `main.py`. Examples assume the default `http://localhost:8000`.
 ## POST /v1/chat/completions
 
 The one endpoint your application calls. It accepts a standard OpenAI chat
-request. **The `model` field is ignored** — Arbiter selects the model. Every
+request. **The `model` field is ignored** - Arbiter selects the model. Every
 other field is passed through to the runtime unchanged.
 
 **Request**
@@ -44,9 +44,9 @@ describing the decision:
 
 ```json
 {
-  "id": "chatcmpl_…",
-  "choices": [{ "message": {"role": "assistant", "content": "42"}, "…": "…" }],
-  "usage": { "total_tokens": 18, "…": "…" },
+  "id": "chatcmpl_...",
+  "choices": [{ "message": {"role": "assistant", "content": "42"}, "...": "..." }],
+  "usage": { "total_tokens": 18, "...": "..." },
   "arbiter": {
     "task": "math",
     "classified_by": "rules",
@@ -77,7 +77,7 @@ describing the decision:
 | `quality_reason` | How the score was derived (objective check, judge, or learned). |
 | `cost` | The real charge for this call, from `x-btl-customer-charge`. |
 | `baseline_cost` | Learned mean cost of the baseline for this task, or `null` if not yet sampled. |
-| `saved` | `baseline_cost − cost` for this call, or `null` if baseline unknown. |
+| `saved` | `baseline_cost - cost` for this call, or `null` if baseline unknown. |
 | `tokens_needed` | Estimated tokens required (used by the context filter). |
 | `eligible_models` | How many models passed the context filter. |
 

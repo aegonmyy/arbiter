@@ -5,7 +5,7 @@ import { GeistMono } from "geist/font/mono";
 import { ThemeProvider } from "next-themes";
 
 export const metadata: Metadata = {
-  title: "Arbiter — LLM cost router",
+  title: "Arbiter - LLM cost router",
   description: "Every request, to the cheapest model that still gets it right.",
 };
 

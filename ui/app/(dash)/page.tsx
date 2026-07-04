@@ -10,7 +10,7 @@ export default function OverviewPage() {
     <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-8">
       <InfoBanner storageKey="overview">
         Arbiter is a drop-in OpenAI-compatible endpoint. It routes each request to the cheapest model that still
-        gets it right on the BTL runtime, checks the answer, and learns — so you stop paying premium prices for
+        gets it right on the BTL runtime, checks the answer, and learns - so you stop paying premium prices for
         simple work. Try it in the Playground.
       </InfoBanner>
       <StatsBar />

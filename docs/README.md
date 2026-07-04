@@ -2,7 +2,7 @@
 
 Arbiter is a drop-in, OpenAI-compatible router. It sits in front of the Bad
 Theory Labs (BTL) runtime and sends each request to the cheapest model that
-still does the job well — measuring the savings from the runtime's own cost
+still does the job well - measuring the savings from the runtime's own cost
 headers rather than estimating them.
 
 This folder explains what it does, why it works the way it does, and how to run
@@ -21,12 +21,12 @@ and integrate it.
 
 | Document | What it covers |
 |----------|----------------|
-| [architecture.md](architecture.md) | The request lifecycle and how the pieces fit: Classify → Filter → Route → Grade → Learn → React. |
-| [strategies.md](strategies.md) | Each strategy in depth — classification, the context filter, the routing policy, quality scoring, the judge, and price-shift re-exploration — with the trade-offs behind them. |
+| [architecture.md](architecture.md) | The request lifecycle and how the pieces fit: Classify -> Filter -> Route -> Grade -> Learn -> React. |
+| [strategies.md](strategies.md) | Each strategy in depth - classification, the context filter, the routing policy, quality scoring, the judge, and price-shift re-exploration - with the trade-offs behind them. |
 | [api-reference.md](api-reference.md) | Every HTTP endpoint, request and response shapes, and the `arbiter` block added to each completion. |
 | [integration.md](integration.md) | Running Arbiter, pointing an OpenAI client at it, and the key / auth model. |
 | [configuration.md](configuration.md) | Environment variables, the model registry, and the tunable thresholds. |
-| [roadmap.md](roadmap.md) | What's next: hardening, smarter routing, and wider reach — and which limitation each item addresses. |
+| [roadmap.md](roadmap.md) | What's next: hardening, smarter routing, and wider reach - and which limitation each item addresses. |
 
 ## Conventions used in these docs
 
@@ -45,6 +45,6 @@ A request arrives dressed as an OpenAI call. Arbiter classifies it, drops any
 model whose context window can't hold it, and routes it to the cheapest
 remaining model whose learned quality is within tolerance of the best. It sends
 that to the runtime, grades the answer, and folds the measured cost and quality
-back into a shared, persistent policy — so the next similar request is routed
+back into a shared, persistent policy - so the next similar request is routed
 better. If a model's price moves, Arbiter notices and re-routes. The savings are
 read from the runtime's `x-btl-*` headers, so they are measured, not guessed.

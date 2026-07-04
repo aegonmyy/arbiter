@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Arbiter — LLM cost router</title>
+<title>Arbiter - LLM cost router</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -134,13 +134,13 @@
   <section class="hero">
     <div class="card">
       <h1>Every request, to the cheapest model that still gets it right.</h1>
-      <p>Arbiter is a drop-in OpenAI-compatible endpoint. It classifies each request, routes it to the best model-for-the-money on the BTL runtime, checks the answer, and learns — so you stop paying premium prices for simple work.</p>
+      <p>Arbiter is a drop-in OpenAI-compatible endpoint. It classifies each request, routes it to the best model-for-the-money on the BTL runtime, checks the answer, and learns - so you stop paying premium prices for simple work.</p>
       <div class="steps">
-        <span class="pill">1 · <b>Classify</b> the request</span>
-        <span class="pill">2 · <b>Filter</b> by context fit</span>
-        <span class="pill">3 · <b>Route</b> cheapest-good</span>
-        <span class="pill">4 · <b>Grade &amp; learn</b></span>
-        <span class="pill">5 · <b>React</b> to price moves</span>
+        <span class="pill">1 - <b>Classify</b> the request</span>
+        <span class="pill">2 - <b>Filter</b> by context fit</span>
+        <span class="pill">3 - <b>Route</b> cheapest-good</span>
+        <span class="pill">4 - <b>Grade &amp; learn</b></span>
+        <span class="pill">5 - <b>React</b> to price moves</span>
       </div>
     </div>
     <div class="card">
@@ -149,7 +149,7 @@
 client = OpenAI(
   <span class="k">base_url</span>=<span class="s">"http://localhost:8000/v1"</span>,
   <span class="k">api_key</span>=<span class="s">"ignored"</span>)
-<span class="c"># model field is ignored — Arbiter picks</span></div>
+<span class="c"># model field is ignored - Arbiter picks</span></div>
       <button class="copybtn" onclick="copyBase()">Copy base URL</button>
     </div>
   </section>
@@ -157,21 +157,21 @@ client = OpenAI(
   <!-- headline stats -->
   <section class="stat-grid">
     <div class="card"><div class="card-title">Saved vs baseline</div>
-      <div class="stat-value teal" id="saved-pct">—</div><div class="stat-sub" id="saved-pct-sub">measuring…</div></div>
+      <div class="stat-value teal" id="saved-pct">-</div><div class="stat-sub" id="saved-pct-sub">measuring...</div></div>
     <div class="card"><div class="card-title">Total saved</div>
-      <div class="stat-value" id="saved-abs">—</div><div class="stat-sub" id="saved-proj">—</div></div>
+      <div class="stat-value" id="saved-abs">-</div><div class="stat-sub" id="saved-proj">-</div></div>
     <div class="card"><div class="card-title">Actual spend</div>
-      <div class="stat-value" id="actual">—</div><div class="stat-sub" id="baseline">vs baseline —</div></div>
+      <div class="stat-value" id="actual">-</div><div class="stat-sub" id="baseline">vs baseline -</div></div>
     <div class="card"><div class="card-title">Calls routed</div>
-      <div class="stat-value indigo" id="calls">—</div><div class="stat-sub">across all task types</div></div>
+      <div class="stat-value indigo" id="calls">-</div><div class="stat-sub">across all task types</div></div>
   </section>
 
   <!-- secondary stats -->
   <section class="mini-grid">
-    <div class="mini"><span class="l">Models in pool</span><span class="v" id="pool">—</span></div>
-    <div class="mini"><span class="l">Classified by rules</span><span class="v" id="rules-pct">—</span></div>
-    <div class="mini"><span class="l">Escalated to model</span><span class="v" id="model-pct">—</span></div>
-    <div class="mini"><span class="l">Price shifts caught</span><span class="v" id="alert-count">—</span></div>
+    <div class="mini"><span class="l">Models in pool</span><span class="v" id="pool">-</span></div>
+    <div class="mini"><span class="l">Classified by rules</span><span class="v" id="rules-pct">-</span></div>
+    <div class="mini"><span class="l">Escalated to model</span><span class="v" id="model-pct">-</span></div>
+    <div class="mini"><span class="l">Price shifts caught</span><span class="v" id="alert-count">-</span></div>
   </section>
 
   <div class="cols">
@@ -182,7 +182,7 @@ client = OpenAI(
       </div>
       <div class="card">
         <div class="card-title">Live routing decisions</div>
-        <div class="feed" id="feed"><div class="empty">Waiting for traffic…</div></div>
+        <div class="feed" id="feed"><div class="empty">Waiting for traffic...</div></div>
       </div>
       <div class="card">
         <div class="card-title">What the router has learned</div>
@@ -200,7 +200,7 @@ client = OpenAI(
         <ul class="how">
           <li>Clear prompts are bucketed by <strong>rules</strong>; ambiguous ones by a free model.</li>
           <li>Only models whose <strong>context fits</strong> are eligible.</li>
-          <li>It <strong>explores</strong> then <strong>exploits</strong> — cheapest within tolerance of the best.</li>
+          <li>It <strong>explores</strong> then <strong>exploits</strong> - cheapest within tolerance of the best.</li>
           <li>Savings come from the runtime's own <strong>cost headers</strong>.</li>
           <li>A price move <strong>re-opens exploration</strong> and re-routes.</li>
         </ul>
@@ -217,9 +217,9 @@ client = OpenAI(
 
 <script>
 const BASE = location.origin + "/v1";
-const money = (v, dp=5) => v==null ? "—" : "$" + Number(v).toFixed(dp);
+const money = (v, dp=5) => v==null ? "-" : "$" + Number(v).toFixed(dp);
 const fmtBig = (v) => v>=1 ? "$"+v.toLocaleString(undefined,{maximumFractionDigits:2}) : money(v);
-const pct = (n,d) => d>0 ? Math.round(100*n/d)+"%" : "—";
+const pct = (n,d) => d>0 ? Math.round(100*n/d)+"%" : "-";
 async function j(p){ try{ return await (await fetch(p)).json(); }catch(e){ return null; } }
 function copyBase(){ navigator.clipboard?.writeText(BASE); const b=event.target; const t=b.textContent; b.textContent="Copied ✓"; setTimeout(()=>b.textContent=t,1200); }
 
@@ -247,7 +247,7 @@ function renderReport(r){
   document.getElementById("baseline").textContent="vs "+fmtBig(r.baseline_spend)+" on baseline";
   document.getElementById("calls").textContent=r.calls.toLocaleString();
   if(r.calls>0){ const proj=(r.saved/r.calls)*1e6;
-    document.getElementById("saved-proj").textContent="≈ "+fmtBig(proj)+" per 1M requests"; }
+    document.getElementById("saved-proj").textContent="~ "+fmtBig(proj)+" per 1M requests"; }
   drawSpark(r.saved_pct);
 }
 function renderOverview(o){
@@ -262,7 +262,7 @@ function renderFeed(rows){
   const el=document.getElementById("feed"); if(!rows||!rows.length) return;
   el.innerHTML=rows.map(r=>{
     const mc=r.mode==="exploit"?"chip-exploit":"chip-explore";
-    const val=(r.saved!=null&&r.saved>0)?`<span class="saved-tag">−${money(r.saved)}</span>`:`<span class="cost-tag">${money(r.cost)}</span>`;
+    const val=(r.saved!=null&&r.saved>0)?`<span class="saved-tag">-${money(r.saved)}</span>`:`<span class="cost-tag">${money(r.cost)}</span>`;
     return `<div class="feed-row"><span class="chip chip-task">${r.task}</span>
       <span class="chip chip-by">${r.classified_by||"rules"}</span>
       <span class="model-name mono" title="${r.model}">${r.model}</span>
@@ -285,7 +285,7 @@ function renderPolicy(p){
     const chosen=sorted.find(r=>(r.quality??0)>=bestQ-0.05);
     html+=`<div class="task-section-title">${task}</div><table><thead><tr><th>Model</th><th>Runs</th><th>Quality</th><th>Avg cost</th></tr></thead><tbody>`;
     for(const r of sorted){
-      const isC=chosen&&r.model===chosen.model; const q=r.quality==null?"—":r.quality.toFixed(2); const w=Math.round((r.quality??0)*100);
+      const isC=chosen&&r.model===chosen.model; const q=r.quality==null?"-":r.quality.toFixed(2); const w=Math.round((r.quality??0)*100);
       html+=`<tr class="${isC?'chosen':''}"><td class="mono">${r.model}${isC?' ✓':''}</td><td>${r.n}</td>
         <td><div style="display:flex;align-items:center;gap:.5rem"><span style="width:2.1rem">${q}</span><div class="bar" style="flex:1"><span style="width:${w}%"></span></div></div></td>
         <td class="mono">${money(r.avg_cost,7)}</td></tr>`;

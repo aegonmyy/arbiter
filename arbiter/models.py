@@ -6,7 +6,7 @@ intentionally left out: they only answer on the /v1/messages surface, which is
 a separate route we can add later.
 
 The `tier` is a rough prior on how strong/expensive a model is. It only seeds
-the exploration order — the real cost and quality numbers come from the runtime
+the exploration order - the real cost and quality numbers come from the runtime
 at request time and are what the policy actually learns from.
 """
 from dataclasses import dataclass
@@ -23,7 +23,7 @@ class ModelSpec:
 
 # Curated spread across cost tiers. Kept small on purpose so exploring a new
 # task type stays cheap. `context` lets us rule a model out before routing when
-# a prompt won't fit — a correctness guard that runs ahead of the cost/quality
+# a prompt won't fit - a correctness guard that runs ahead of the cost/quality
 # decision.
 CANDIDATES: list[ModelSpec] = [
     ModelSpec("mistral-small-3.2-24b-instruct-2506", "small", 128_000),

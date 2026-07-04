@@ -17,10 +17,10 @@ export default function MiniStats() {
   const total = c ? c.rules + c.model + c["model-fallback"] : 0;
   return (
     <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <Mini label="Models in pool" value={data ? String(data.pool_size) : "—"} />
-      <Mini label="Classified by rules" value={c ? pctOf(c.rules, total) : "—"} />
-      <Mini label="Escalated to model" value={c ? pctOf(c.model + c["model-fallback"], total) : "—"} />
-      <Mini label="Price shifts caught" value={data ? String(data.alerts) : "—"} />
+      <Mini label="Models in pool" value={data ? String(data.pool_size) : "-"} />
+      <Mini label="Classified by rules" value={c ? pctOf(c.rules, total) : "-"} />
+      <Mini label="Escalated to model" value={c ? pctOf(c.model + c["model-fallback"], total) : "-"} />
+      <Mini label="Price shifts caught" value={data ? String(data.alerts) : "-"} />
     </section>
   );
 }

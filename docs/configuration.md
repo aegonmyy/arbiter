@@ -12,7 +12,7 @@ precedence). See `.env.example`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `GATEWAY_API_KEY` | — (required) | Your BTL machine key. Every runtime call uses it. Arbiter refuses to start a request without it. |
+| `GATEWAY_API_KEY` | - (required) | Your BTL machine key. Every runtime call uses it. Arbiter refuses to start a request without it. |
 | `BTL_BASE_URL` | `https://api.badtheorylabs.com/v1` | The runtime's OpenAI-compatible base URL. |
 | `BASELINE_MODEL` | `gpt-4o` | The premium model savings are measured against. Must be an OpenAI-surface route (not an Anthropic-direct model). |
 | `BASELINE_CONTEXT` | `128000` | Assumed context window for the baseline, used by the context filter. Change it if you point `BASELINE_MODEL` at a model with a different window. |
@@ -22,9 +22,9 @@ precedence). See `.env.example`.
 
 The pool of models Arbiter may route to lives in `models.py`:
 
-- `CANDIDATES` — the list of routable models, each a `ModelSpec(id, tier,
+- `CANDIDATES` - the list of routable models, each a `ModelSpec(id, tier,
   context)`.
-- `BASELINE` — the premium baseline, built from `BASELINE_MODEL` /
+- `BASELINE` - the premium baseline, built from `BASELINE_MODEL` /
   `BASELINE_CONTEXT`.
 
 ```python
@@ -34,10 +34,10 @@ ModelSpec("deepseek-chat-v3", "small", 128_000)
 
 **To add or remove a model**, edit `CANDIDATES`. Each entry needs:
 
-- an **id** that answers on the `/v1/chat/completions` surface — verify with the
+- an **id** that answers on the `/v1/chat/completions` surface - verify with the
   runtime's `GET /v1/models`, and confirm it isn't an Anthropic-direct route
   (those need `/v1/messages` and are out of scope);
-- a **tier** (`small`/`mid`/`large`) — a rough prior that only affects the order
+- a **tier** (`small`/`mid`/`large`) - a rough prior that only affects the order
   models are explored in, not the final choice;
 - the **context window** in tokens, which the filter uses to decide eligibility.
 
@@ -60,7 +60,7 @@ These live as constants at the top of `policy.py`. They control how the router
 learns and reacts. Defaults are chosen to keep the cold start cheap and price
 detection quiet; adjust with the trade-offs in mind.
 
-| Constant | Default | Effect | Raise it to… |
+| Constant | Default | Effect | Raise it to... |
 |----------|---------|--------|--------------|
 | `MIN_SAMPLES` | `2` | Observations per model before its numbers are trusted. | Trust the data more, at a longer/costlier cold start. |
 | `EPSILON` | `0.10` | Steady-state chance of re-exploring instead of exploiting. | React faster to drift, at slightly higher steady-state cost. |
@@ -73,7 +73,7 @@ For the reasoning behind these mechanisms, see
 
 ## What is *not* configurable (by design)
 
-- **The caller's `model` field.** Always ignored — choosing the model is the
+- **The caller's `model` field.** Always ignored - choosing the model is the
   product.
 - **Per-user / per-session state.** There is one shared, persistent policy; there
   is no isolation to configure.

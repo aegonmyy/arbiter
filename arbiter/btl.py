@@ -1,7 +1,7 @@
 """Thin client for the Bad Theory Labs runtime.
 
 Everything Arbiter sends to a model goes through here. Besides the response
-body, we care about the cost headers the runtime attaches to every reply — they
+body, we care about the cost headers the runtime attaches to every reply - they
 are how we measure savings instead of estimating them.
 """
 from dataclasses import dataclass

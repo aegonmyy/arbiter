@@ -36,7 +36,7 @@ export function HowItWorks() {
         <ul className="space-y-2.5">
           {items.map(([k, v]) => (
             <li key={k} className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{k}</span> — {v}
+              <span className="font-semibold text-foreground">{k}</span> - {v}
             </li>
           ))}
         </ul>
