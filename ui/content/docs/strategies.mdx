@@ -233,6 +233,22 @@ that reports cost per call.
 
 ---
 
+## 8. Quarantine - route around a broken model
+
+**Problem.** A model can start failing (provider overload, a `429`, an outage).
+Failed calls are not recorded (so they can't poison the policy), but that means a
+persistently-broken model stays "least sampled" forever and the explore loop
+keeps re-picking it - stalling routing.
+
+**Approach** (`main.py`). When a routed call errors, the model is put in a short
+**quarantine** and skipped by routing until it expires (a few minutes); a
+successful call clears it immediately. If everything eligible is quarantined we
+still try rather than fail. So a model that goes down is routed around within one
+request and automatically comes back when it recovers - no manual intervention.
+
+This is a first cut at the reliability item on the [roadmap](/docs/roadmap); full
+failover (retry the next-best model within the same request) builds on it.
+
 ## Cross-cutting decisions
 
 - **OpenAI surface only.** Arbiter routes on `/v1/chat/completions`, so its

@@ -20,6 +20,20 @@ from .policy import ALL_MODELS, Policy
 from .scoring import Score, score
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+# How long to skip a model after it returns an upstream error.
+QUARANTINE_SECONDS = 300
+
+
+def _quarantine(state, model: str) -> None:
+    state.quarantine[model] = time.time() + QUARANTINE_SECONDS
+
+
+def _live(state, models: list[str]) -> list[str]:
+    """Drop models currently quarantined; if that leaves nothing, keep the lot
+    so we still try rather than fail."""
+    now = time.time()
+    ok = [m for m in models if state.quarantine.get(m, 0) <= now]
+    return ok or models
 # The exported Next.js UI, if it has been built (docs + rich dashboard).
 UI_OUT = Path(__file__).resolve().parent.parent / "ui" / "out"
 
@@ -35,6 +49,8 @@ async def lifespan(app: FastAPI):
     app.state.price_mult = {}
     # How each request's task type was decided.
     app.state.classifier_counts = {"rules": 0, "model": 0, "model-fallback": 0}
+    # Models temporarily skipped after an upstream error: {model: until_ts}.
+    app.state.quarantine = {}
     yield
     await app.state.btl.aclose()
 
@@ -136,6 +152,8 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         # If nothing fits the budget, fall back to the single cheapest estimate.
         eligible = within or [min(eligible, key=lambda m: estimate_cost(m, in_tokens, out_tokens))]
 
+    # Skip models that recently errored, so a broken model doesn't stall routing.
+    eligible = _live(request.app.state, eligible)
     decision = policy.choose(task.value, allowed=eligible)
 
     # The client's requested model is ignored on purpose - choosing the model
@@ -150,8 +168,9 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         completion = await request.app.state.btl.chat(payload)
     except httpx.HTTPStatusError as e:
         # The runtime/provider rejected the call (e.g. 402 out of credit, 429
-        # rate limit, 400 bad request). Surface it cleanly with the upstream
-        # status and don't record a failed attempt into the policy.
+        # rate limit, 400 bad request). Quarantine the model, surface it cleanly
+        # with the upstream status, and don't record a failed attempt.
+        _quarantine(request.app.state, decision.model)
         try:
             detail = e.response.json()
         except ValueError:
@@ -159,8 +178,10 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         raise HTTPException(status_code=e.response.status_code,
                             detail={"upstream": "btl_runtime", "model": decision.model, "error": detail})
     except httpx.RequestError as e:
+        _quarantine(request.app.state, decision.model)
         raise HTTPException(status_code=502,
                             detail={"upstream": "btl_runtime", "error": f"unreachable: {type(e).__name__}"})
+    request.app.state.quarantine.pop(decision.model, None)  # succeeded: clear any quarantine
 
     quality = score(task, prompt, completion.text)
 
@@ -234,6 +255,7 @@ def _stream(request: Request, payload, task, decision, classified_by, eligible, 
         try:
             async with btl.stream(payload) as resp:
                 if resp.status_code != 200:
+                    _quarantine(app_state, decision.model)
                     detail = (await resp.aread()).decode("utf-8", "replace")[:400]
                     yield f'data: {json.dumps({"error": {"upstream_status": resp.status_code, "detail": detail, "model": decision.model}})}\n\n'
                     return
@@ -254,8 +276,10 @@ def _stream(request: Request, payload, task, decision, classified_by, eligible, 
                                 pass
                     yield line + "\n"
         except httpx.RequestError as e:
+            _quarantine(app_state, decision.model)
             yield f'data: {json.dumps({"error": {"detail": f"unreachable: {type(e).__name__}"}})}\n\n'
             return
+        app_state.quarantine.pop(decision.model, None)  # succeeded: clear quarantine
 
         # The client already has the full answer; now score it and learn.
         text = "".join(full)
