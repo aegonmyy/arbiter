@@ -29,6 +29,14 @@ class ModelSpec:
 # per-request budget. Both are guards that run ahead of the cost/quality
 # decision. Prices are the runtime's list prices ($/1M tokens).
 CANDIDATES: list[ModelSpec] = [
+    # Free ($0) models, verified to answer well on the chat surface. With these
+    # in the pool most traffic can route to a model that costs nothing.
+    ModelSpec("deepseek-v4-flash", "small", 1_048_576, 0.0, 0.0),
+    ModelSpec("deepseek-v4-pro", "small", 1_048_576, 0.0, 0.0),
+    ModelSpec("llama-3.3-70b-instruct", "small", 131_072, 0.0, 0.0),
+    ModelSpec("qwen3-coder-480b-a35b-07-25", "small", 1_048_576, 0.0, 0.0),
+    ModelSpec("hermes-3-llama-3.1-405b", "small", 131_072, 0.0, 0.0),
+    # Cheap paid models spanning the price range.
     ModelSpec("mistral-small-3.2-24b-instruct-2506", "small", 128_000, 0.075, 0.20),
     ModelSpec("deepseek-chat-v3", "small", 128_000, 0.20, 0.80),
     ModelSpec("llama-3.1-70b-instruct", "small", 131_072, 0.40, 0.40),
