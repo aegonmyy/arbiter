@@ -75,24 +75,30 @@ class Policy:
         return mean_q if n else None
 
     # -- decision ----------------------------------------------------------
-    def choose(self, task: str) -> Decision:
+    def choose(self, task: str, allowed: list[str] | None = None) -> Decision:
+        # `allowed` is the set of models eligible for this request (e.g. those
+        # whose context window fits the prompt). We only ever pick from it.
+        pool = [m for m in ALL_MODELS if allowed is None or m in allowed]
+        if not pool:                      # nothing fits — fall back to all
+            pool = list(ALL_MODELS)
+
         with self._lock:
-            samples = {m: self._row(task, m)[0] for m in ALL_MODELS}
+            samples = {m: self._row(task, m)[0] for m in pool}
 
             # 1. Explore: anything not yet sampled enough. Pick the least-tried
             #    so exploration spreads evenly.
-            under = [m for m in ALL_MODELS if samples[m] < MIN_SAMPLES]
+            under = [m for m in pool if samples[m] < MIN_SAMPLES]
             if under:
                 pick = min(under, key=lambda m: samples[m])
                 return Decision(pick, "explore", "gathering baseline data")
 
             # 2. Occasionally re-explore so the policy stays current.
             if random.random() < EPSILON:
-                pick = random.choice(ALL_MODELS)
+                pick = random.choice(pool)
                 return Decision(pick, "explore", "epsilon re-check")
 
             # 3. Exploit: cheapest model within tolerance of the best quality.
-            means = {m: self._mean(task, m) for m in ALL_MODELS}
+            means = {m: self._mean(task, m) for m in pool}
             best_q = max(mq for _, mq, _ in means.values())
             acceptable = {
                 m: mc for m, (_, mq, mc) in means.items()

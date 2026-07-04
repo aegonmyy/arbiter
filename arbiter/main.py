@@ -9,7 +9,8 @@ from fastapi.responses import FileResponse
 from .btl import BTLClient
 from .classify import classify, _last_user_text
 from .judge import judge
-from .policy import Policy
+from .models import fits
+from .policy import ALL_MODELS, Policy
 from .scoring import Score, score
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -48,7 +49,14 @@ async def chat_completions(request: Request):
     policy: Policy = request.app.state.policy
     messages = payload["messages"]
     task = classify(messages)
-    decision = policy.choose(task.value)
+
+    # Capability guard: only consider models whose context window fits this
+    # prompt (rough 4-chars-per-token estimate plus the requested reply room).
+    chars = sum(len(str(m.get("content", ""))) for m in messages)
+    tokens_needed = chars // 4 + int(payload.get("max_tokens", 512))
+    eligible = [m for m in ALL_MODELS if fits(m, tokens_needed)]
+
+    decision = policy.choose(task.value, allowed=eligible)
 
     # The client's requested model is ignored on purpose — choosing the model
     # is the whole point of Arbiter. We keep every other parameter as-is.
@@ -97,6 +105,8 @@ async def chat_completions(request: Request):
         "cost": cost,
         "baseline_cost": baseline_cost,
         "saved": saved,
+        "tokens_needed": tokens_needed,
+        "eligible_models": len(eligible),
     }
     return body
 

@@ -15,26 +15,39 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class ModelSpec:
     id: str
-    tier: str  # "small" | "mid" | "large"
+    tier: str        # "small" | "mid" | "large"
+    context: int     # max context window in tokens
 
 
 # Curated spread across cost tiers. Kept small on purpose so exploring a new
-# task type stays cheap.
+# task type stays cheap. `context` lets us rule a model out before routing when
+# a prompt won't fit — a correctness guard that runs ahead of the cost/quality
+# decision.
 CANDIDATES: list[ModelSpec] = [
-    ModelSpec("mistral-small-3.2-24b-instruct-2506", "small"),
-    ModelSpec("deepseek-chat-v3", "small"),
-    ModelSpec("llama-3.1-70b-instruct", "small"),
-    ModelSpec("gpt-4.1-mini", "small"),
-    ModelSpec("gemini-2.5-flash", "mid"),
-    ModelSpec("gpt-4o-mini", "mid"),
-    ModelSpec("gpt-4.1", "mid"),
-    ModelSpec("gemini-2.5-pro", "large"),
+    ModelSpec("mistral-small-3.2-24b-instruct-2506", "small", 128_000),
+    ModelSpec("deepseek-chat-v3", "small", 128_000),
+    ModelSpec("llama-3.1-70b-instruct", "small", 131_072),
+    ModelSpec("gpt-4.1-mini", "small", 1_047_576),
+    ModelSpec("gemini-2.5-flash", "mid", 1_048_576),
+    ModelSpec("gpt-4o-mini", "mid", 128_000),
+    ModelSpec("gpt-4.1", "mid", 1_047_576),
+    ModelSpec("gemini-2.5-pro", "large", 1_048_576),
 ]
 
 # What a naive team would use for everything. Savings are measured against this.
-BASELINE = ModelSpec("gpt-4o", "large")
+BASELINE = ModelSpec("gpt-4o", "large", 128_000)
 
 CANDIDATE_IDS = [m.id for m in CANDIDATES]
+
+_CONTEXT = {m.id: m.context for m in CANDIDATES} | {BASELINE.id: BASELINE.context}
+
+
+def context_of(model_id: str) -> int:
+    return _CONTEXT.get(model_id, 0)
+
+
+def fits(model_id: str, tokens_needed: int) -> bool:
+    return context_of(model_id) >= tokens_needed
 
 
 def is_known(model_id: str) -> bool:
