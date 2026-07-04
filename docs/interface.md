@@ -29,10 +29,12 @@ product onboarding: teach the vocabulary once, then get out of the way.
   a live savings chart, secondary stats (pool size, how requests were
   classified, price shifts caught), a short how-it-works, and an integration
   card that links into the Playground.
-- **Playground** - type or pick an example prompt and route it live. The result
-  shows a plain-English summary plus the task, mode, quality, cost, savings and
-  eligible-model count, each with a short hint, and the actual answer. Every run
-  is a real request through the runtime.
+- **Playground** - type or pick an example prompt and route it live. A budget
+  slider sets a max cost per request and previews, in real time, which models
+  fit that budget for the current prompt. The result shows a plain-English
+  summary plus the task, mode, quality, cost, savings and eligible-model count,
+  each with a short hint, and the actual answer. Every run is a real request
+  through the runtime.
 - **Activity** - the live feed of routing decisions and the price-shift alerts.
 - **Models** - the learned policy per task type (which model won where, with
   quality and average cost) and the baseline settings.

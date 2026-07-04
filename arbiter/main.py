@@ -15,7 +15,7 @@ from .btl import BTLClient, Cost
 from .classify import _last_user_text
 from .classifier import classify_smart
 from .judge import judge
-from .models import estimate_cost, fits
+from .models import BASELINE, CANDIDATES, estimate_cost, fits
 from .policy import ALL_MODELS, Policy
 from .scoring import Score, score
 
@@ -293,6 +293,22 @@ async def policy_state(request: Request) -> dict:
 async def recent(request: Request) -> list:
     """The most recent routing decisions, newest first."""
     return list(request.app.state.recent)
+
+
+@app.get("/v1/pricing")
+async def pricing() -> list:
+    """List prices for the candidate models, so a client can preview which
+    models fit a budget. Read-only, open."""
+    rows = [
+        {"id": m.id, "tier": m.tier, "context": m.context,
+         "in_price": m.in_price, "out_price": m.out_price, "baseline": False}
+        for m in CANDIDATES
+    ]
+    rows.append({
+        "id": BASELINE.id, "tier": BASELINE.tier, "context": BASELINE.context,
+        "in_price": BASELINE.in_price, "out_price": BASELINE.out_price, "baseline": True,
+    })
+    return rows
 
 
 @app.get("/v1/overview")

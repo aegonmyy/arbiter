@@ -47,6 +47,17 @@ export type Policy = Record<string, PolicyRow[]>;
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const opts = { refreshInterval: 1500, keepPreviousData: true };
 
+export interface PricingModel {
+  id: string;
+  tier: string;
+  context: number;
+  in_price: number;
+  out_price: number;
+  baseline: boolean;
+}
+
+export const usePricing = () => useSWR<PricingModel[]>("/v1/pricing", fetcher, { revalidateOnFocus: false });
+
 export const useReport = () => useSWR<Report>("/v1/report", fetcher, opts);
 export const useOverview = () => useSWR<Overview>("/v1/overview", fetcher, opts);
 export const useRecent = () => useSWR<Decision[]>("/v1/recent", fetcher, opts);

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { cn, money } from "@/lib/utils";
 import { getApiKey } from "@/lib/onboarding";
+import { usePricing } from "@/lib/api";
 
 interface Result {
   answer: string;
@@ -20,12 +21,10 @@ interface Result {
   budget_met: boolean | null;
 }
 
-const BUDGETS: { label: string; value: string }[] = [
-  { label: "No cap", value: "" },
-  { label: "$0.0001", value: "0.0001" },
-  { label: "$0.001", value: "0.001" },
-  { label: "$0.01", value: "0.01" },
-];
+// Log-scale budget slider bounds (USD per request).
+const MIN_EXP = -6;   // $0.000001
+const MAX_EXP = -1.7; // ~$0.02 (above any pool model for a normal prompt)
+const tToBudget = (t: number) => Math.pow(10, MIN_EXP + (t / 100) * (MAX_EXP - MIN_EXP));
 
 const EXAMPLES: { label: string; prompt: string }[] = [
   { label: "Math", prompt: "Calculate 47 * 128. Reply with only the number." },
@@ -57,21 +56,31 @@ function summarize(r: Result): string {
     + `The answer scored ${r.quality?.toFixed(2)} out of 1 and cost ${money(r.cost)}.${savings}`;
 }
 
+const OUT_TOKENS = 400;
+
 export default function Playground() {
   const [prompt, setPrompt] = useState(EXAMPLES[0].prompt);
-  const [budget, setBudget] = useState("");
+  const [budgetT, setBudgetT] = useState(100); // slider position 0..100 (100 = highest)
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { data: pricing } = usePricing();
+
+  const budget = tToBudget(budgetT);
+  const inTokens = Math.max(1, Math.ceil(prompt.length / 4));
+  const models = (pricing ?? [])
+    .map((m) => ({ ...m, est: (inTokens * m.in_price + OUT_TOKENS * m.out_price) / 1_000_000 }))
+    .sort((a, b) => a.est - b.est);
+  const eligible = models.filter((m) => m.est <= budget).length;
 
   async function run() {
     if (!prompt.trim() || loading) return;
     setLoading(true); setError(null); setResult(null);
     try {
       const body: Record<string, unknown> = {
-        model: "auto", messages: [{ role: "user", content: prompt }], max_tokens: 400,
+        model: "auto", messages: [{ role: "user", content: prompt }], max_tokens: OUT_TOKENS,
+        arbiter_max_cost: budget,
       };
-      if (budget) body.arbiter_max_cost = Number(budget);
       const res = await fetch("/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getApiKey()}` },
@@ -109,17 +118,35 @@ export default function Playground() {
             rows={5} spellCheck={false}
             className="w-full resize-y rounded-2xl border border-border bg-background px-4 py-3 font-mono text-sm outline-none focus:border-primary/50"
             placeholder="Ask anything..." />
-          <div>
-            <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">Budget - max cost per request</span>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {BUDGETS.map((b) => (
-                <button key={b.label} onClick={() => setBudget(b.value)}
-                  className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                    budget === b.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground")}>
-                  {b.label}
-                </button>
-              ))}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">Budget - max cost per request</span>
+              <span className="font-mono text-xs font-semibold">{money(budget, 6)}</span>
             </div>
+            <input type="range" min={0} max={100} value={budgetT} step={1}
+              onChange={(e) => setBudgetT(Number(e.target.value))}
+              aria-label="Max cost per request"
+              className="w-full accent-[var(--primary)]" />
+            <div className="space-y-1">
+              {models.map((m) => {
+                const ok = m.est <= budget;
+                return (
+                  <div key={m.id} className={cn(
+                    "flex items-center justify-between rounded-lg border px-2.5 py-1 text-[0.72rem] transition-opacity",
+                    ok ? "border-secondary/40 bg-secondary/5" : "border-border opacity-40")}>
+                    <span className="flex items-center gap-2 truncate font-mono">
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", ok ? "bg-secondary" : "bg-border")} />
+                      {m.id}{m.baseline ? " (baseline)" : ""}
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">{money(m.est, 6)}</span>
+                  </div>
+                );
+              })}
+              {!models.length && <div className="h-8 rounded-lg bg-muted shimmer" />}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {models.length ? `${eligible} of ${models.length} models fit this budget for the current prompt.` : "Loading prices..."}
+            </p>
           </div>
           <button onClick={run} disabled={loading || !prompt.trim()}
             className="min-h-11 w-full rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
