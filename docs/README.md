@@ -26,6 +26,7 @@ and integrate it.
 | [api-reference.md](api-reference.md) | Every HTTP endpoint, request and response shapes, and the `arbiter` block added to each completion. |
 | [integration.md](integration.md) | Running Arbiter, pointing an OpenAI client at it, and the key / auth model. |
 | [configuration.md](configuration.md) | Environment variables, the model registry, and the tunable thresholds. |
+| [roadmap.md](roadmap.md) | What's next: hardening, smarter routing, and wider reach — and which limitation each item addresses. |
 
 ## Conventions used in these docs
 
