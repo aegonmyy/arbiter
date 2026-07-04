@@ -1,8 +1,10 @@
 "use client";
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
+import { useOnboarded } from "@/lib/onboarding";
 
 function OverviewIcon({ className }: { className?: string }) {
   return (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -36,6 +38,22 @@ const norm = (p: string) => (p !== "/" && p.endsWith("/") ? p.slice(0, -1) : p);
 
 export default function DashLayout({ children }: { children: React.ReactNode }) {
   const pathname = norm(usePathname());
+  const router = useRouter();
+  const onboarded = useOnboarded();
+
+  // First-time visitors are walked through /start before the dashboard.
+  useEffect(() => {
+    if (onboarded === false) router.replace("/start");
+  }, [onboarded, router]);
+
+  // Hold rendering until we know; never flash the dashboard to a first-timer.
+  if (onboarded !== true) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

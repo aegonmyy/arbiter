@@ -4,8 +4,11 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useReport, useOverview } from "@/lib/api";
+import { useOnboarded } from "@/lib/onboarding";
 
 function Nav() {
+  const onboarded = useOnboarded();
+  const appHref = onboarded ? "/app" : "/start";
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-border/60 bg-card backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-6 px-4 sm:px-8">
@@ -16,7 +19,7 @@ function Nav() {
         <div className="flex items-center gap-3">
           <Link href="/docs/" className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:block">Docs</Link>
           <ThemeToggle />
-          <Link href="/app" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Launch app</Link>
+          <Link href={appHref} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Launch app</Link>
         </div>
       </div>
     </header>
@@ -26,6 +29,7 @@ function Nav() {
 function Hero() {
   const { data: report } = useReport();
   const { data: overview } = useOverview();
+  const onboarded = useOnboarded();
   const stats = [
     { label: "Saved vs baseline", value: report ? `${report.saved_pct.toFixed(0)}%` : null, accent: "text-secondary" },
     { label: "Calls routed", value: report ? report.calls.toLocaleString() : null, accent: "text-foreground" },
@@ -48,7 +52,9 @@ function Hero() {
       </div>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Link href="/start" className="rounded-xl bg-primary px-7 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Get started</Link>
-        <Link href="/app" className="rounded-xl border border-border bg-card px-7 py-3 text-sm font-semibold transition-all hover:border-primary/30">Skip to app</Link>
+        {onboarded === true
+          ? <Link href="/app" className="rounded-xl border border-border bg-card px-7 py-3 text-sm font-semibold transition-all hover:border-primary/30">Skip to app</Link>
+          : <Link href="/docs/" className="rounded-xl border border-border bg-card px-7 py-3 text-sm font-semibold transition-all hover:border-primary/30">Read the docs</Link>}
       </div>
       <div className="grid w-full grid-cols-2 overflow-hidden rounded-[var(--radius)] border border-border bg-card shadow-sm sm:grid-cols-4">
         {stats.map((s, i) => (
@@ -108,13 +114,16 @@ function WhyBtl() {
 }
 
 function CTA() {
+  const onboarded = useOnboarded();
   return (
     <section className="border-t border-border py-24">
       <div className="mx-auto max-w-xl space-y-6 px-6 text-center">
         <h2 className="text-3xl font-bold tracking-tight">See it route a prompt.</h2>
-        <p className="text-sm text-muted-foreground">Open the playground, send a real request, and watch it get classified, routed, scored and priced live.</p>
+        <p className="text-sm text-muted-foreground">Send a real request and watch it get classified, routed, scored and priced live.</p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link href="/app/playground" className="rounded-xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Open the playground</Link>
+          {onboarded === true
+            ? <Link href="/app/playground" className="rounded-xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Open the playground</Link>
+            : <Link href="/start" className="rounded-xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:opacity-90">Get started</Link>}
           <Link href="/docs/" className="rounded-xl border border-border bg-card px-8 py-3 text-sm font-semibold transition-all hover:border-primary/30">Read the docs</Link>
         </div>
       </div>

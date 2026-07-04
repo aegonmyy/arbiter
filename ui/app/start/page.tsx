@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { markOnboarded, useOnboarded } from "@/lib/onboarding";
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
@@ -78,6 +79,7 @@ export default function StartPage() {
   const [i, setI] = useState(0);
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
+  const onboarded = useOnboarded();
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -86,7 +88,9 @@ export default function StartPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground shadow-sm">A</div>
           <span className="text-lg font-semibold tracking-tight">Arbiter</span>
         </Link>
-        <Link href="/app" className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">Skip to app</Link>
+        {onboarded === true && (
+          <Link href="/app" className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">Skip to app</Link>
+        )}
       </header>
 
       <main className="flex flex-1 items-center justify-center px-6 pb-16">
@@ -113,7 +117,7 @@ export default function StartPage() {
               Back
             </button>
             {last ? (
-              <Link href="/app/playground" className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
+              <Link href="/app/playground" onClick={markOnboarded} className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
                 Launch app
               </Link>
             ) : (
