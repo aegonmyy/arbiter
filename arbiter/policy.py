@@ -24,6 +24,8 @@ ALL_MODELS = [m.id for m in CANDIDATES] + [BASELINE.id]
 MIN_SAMPLES = 2          # tries per model before we trust its numbers
 EPSILON = 0.10           # steady-state chance of re-exploring
 QUALITY_TOLERANCE = 0.05  # how much quality we'll trade for a cheaper model
+PRICE_SHIFT = 0.75       # unit-price move that forces a model to be re-learned
+MIN_TOKENS_FOR_PRICE = 40  # ignore price noise until enough tokens are observed
 
 
 @dataclass
@@ -38,6 +40,7 @@ class Policy:
         import os
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self._db = sqlite3.connect(db_path, check_same_thread=False)
+        self._db.execute("PRAGMA busy_timeout=3000")  # wait rather than error if busy
         self._lock = threading.Lock()
         self._db.execute(
             """CREATE TABLE IF NOT EXISTS stats (
@@ -46,9 +49,15 @@ class Policy:
                    n      INTEGER NOT NULL DEFAULT 0,
                    q_sum  REAL    NOT NULL DEFAULT 0,
                    cost_sum REAL  NOT NULL DEFAULT 0,
+                   tok_sum  REAL  NOT NULL DEFAULT 0,
                    PRIMARY KEY (task, model)
                )"""
         )
+        # Migration for older databases that predate token tracking.
+        try:
+            self._db.execute("ALTER TABLE stats ADD COLUMN tok_sum REAL NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         self._db.commit()
 
     # -- reads -------------------------------------------------------------
@@ -111,18 +120,54 @@ class Policy:
             )
 
     # -- update ------------------------------------------------------------
-    def record(self, task: str, model: str, quality: float, cost: float) -> None:
+    def record(self, task: str, model: str, quality: float, cost: float,
+               tokens: float = 0) -> dict | None:
+        """Fold one observation into the model's stats for this task.
+
+        We watch the model's unit price (cost per token). If it moves more than
+        PRICE_SHIFT from what we'd learned, the old average is stale, so we wipe
+        this model's memory for the task — it drops back into exploration and is
+        re-learned at the new price, then re-routed accordingly. Returns a
+        description of the shift when one happens, else None.
+        """
         with self._lock:
-            self._db.execute(
-                """INSERT INTO stats (task, model, n, q_sum, cost_sum)
-                   VALUES (?, ?, 1, ?, ?)
-                   ON CONFLICT(task, model) DO UPDATE SET
-                       n = n + 1,
-                       q_sum = q_sum + excluded.q_sum,
-                       cost_sum = cost_sum + excluded.cost_sum""",
-                (task, model, quality, cost),
+            cur = self._db.execute(
+                "SELECT n, tok_sum, cost_sum FROM stats WHERE task=? AND model=?",
+                (task, model),
             )
+            row = cur.fetchone()
+
+            shift = None
+            if (row and tokens > 0 and row[0] >= MIN_SAMPLES
+                    and row[1] >= MIN_TOKENS_FOR_PRICE):
+                learned_unit = row[2] / row[1]
+                new_unit = cost / tokens
+                if learned_unit > 0 and abs(new_unit - learned_unit) / learned_unit > PRICE_SHIFT:
+                    shift = {
+                        "task": task, "model": model,
+                        "old_unit": learned_unit, "new_unit": new_unit,
+                        "direction": "up" if new_unit > learned_unit else "down",
+                    }
+
+            if shift:
+                self._db.execute("DELETE FROM stats WHERE task=? AND model=?", (task, model))
+                self._db.execute(
+                    "INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum) VALUES (?, ?, 1, ?, ?, ?)",
+                    (task, model, quality, cost, tokens),
+                )
+            else:
+                self._db.execute(
+                    """INSERT INTO stats (task, model, n, q_sum, cost_sum, tok_sum)
+                       VALUES (?, ?, 1, ?, ?, ?)
+                       ON CONFLICT(task, model) DO UPDATE SET
+                           n = n + 1,
+                           q_sum = q_sum + excluded.q_sum,
+                           cost_sum = cost_sum + excluded.cost_sum,
+                           tok_sum = tok_sum + excluded.tok_sum""",
+                    (task, model, quality, cost, tokens),
+                )
             self._db.commit()
+            return shift
 
     def reset(self) -> None:
         """Wipe learned state — handy for a clean demo run."""

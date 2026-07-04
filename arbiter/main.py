@@ -22,6 +22,9 @@ async def lifespan(app: FastAPI):
     app.state.policy = Policy()
     # Small ring buffer of recent routing decisions, for the live dashboard feed.
     app.state.recent = deque(maxlen=25)
+    # Price-shift alerts, and a demo multiplier to simulate a provider re-price.
+    app.state.alerts = deque(maxlen=25)
+    app.state.price_mult = {}
     yield
     await app.state.btl.aclose()
 
@@ -78,8 +81,15 @@ async def chat_completions(request: Request):
             if learned is not None:
                 quality = Score(learned, "learned quality", objective=False)
 
-    cost = completion.cost.charged or 0.0
-    policy.record(task.value, decision.model, quality.value, cost)
+    # Real charge from the runtime, optionally scaled by the demo multiplier so
+    # a price change can be simulated on cue.
+    raw_cost = completion.cost.charged or 0.0
+    cost = raw_cost * request.app.state.price_mult.get(decision.model, 1.0)
+    tokens = (completion.body.get("usage") or {}).get("total_tokens", 0)
+
+    shift = policy.record(task.value, decision.model, quality.value, cost, tokens)
+    if shift:
+        request.app.state.alerts.appendleft({**shift, "ts": time.time()})
 
     baseline_cost = policy.baseline_cost(task.value)
     saved = round(baseline_cost - cost, 8) if baseline_cost is not None else None
@@ -129,11 +139,38 @@ async def recent(request: Request) -> list:
     return list(request.app.state.recent)
 
 
+@app.get("/v1/alerts")
+async def alerts(request: Request) -> list:
+    """Recent price-shift events that forced a model to be re-learned."""
+    return list(request.app.state.alerts)
+
+
+@app.post("/v1/simulate-price")
+async def simulate_price(request: Request) -> dict:
+    """Demo hook: scale a model's reported cost to imitate a provider re-price.
+
+    Body: {"model": "deepseek-chat-v3", "multiplier": 3.0}. Set multiplier back
+    to 1 to clear it. Lets us show the router reacting to a price move live.
+    """
+    body = await request.json()
+    model = body.get("model")
+    mult = float(body.get("multiplier", 1.0))
+    if not model:
+        raise HTTPException(422, "body must include 'model'")
+    if mult == 1.0:
+        request.app.state.price_mult.pop(model, None)
+    else:
+        request.app.state.price_mult[model] = mult
+    return {"model": model, "multiplier": mult, "active": request.app.state.price_mult}
+
+
 @app.post("/v1/reset")
 async def reset(request: Request) -> dict:
     """Clear learned state and the decision feed for a fresh demo run."""
     request.app.state.policy.reset()
     request.app.state.recent.clear()
+    request.app.state.alerts.clear()
+    request.app.state.price_mult.clear()
     return {"status": "reset"}
 
 
