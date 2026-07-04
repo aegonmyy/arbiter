@@ -26,10 +26,10 @@ function ModelsIcon({ className }: { className?: string }) {
 }
 
 const TABS = [
-  { label: "Overview", href: "/", Icon: OverviewIcon },
-  { label: "Playground", href: "/playground", Icon: PlaygroundIcon },
-  { label: "Activity", href: "/activity", Icon: ActivityIcon },
-  { label: "Models", href: "/models", Icon: ModelsIcon },
+  { label: "Overview", href: "/app", Icon: OverviewIcon },
+  { label: "Playground", href: "/app/playground", Icon: PlaygroundIcon },
+  { label: "Activity", href: "/app/activity", Icon: ActivityIcon },
+  { label: "Models", href: "/app/models", Icon: ModelsIcon },
 ];
 
 const norm = (p: string) => (p !== "/" && p.endsWith("/") ? p.slice(0, -1) : p);
@@ -50,6 +50,7 @@ export default function DashLayout({ children }: { children: React.ReactNode }) 
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/" className="hidden text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:block">Home</Link>
             <Link href="/docs/" className="hidden text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:block">Docs</Link>
             <ThemeToggle />
           </div>

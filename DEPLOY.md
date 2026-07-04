@@ -26,8 +26,8 @@ with almost no setup.
    Domain**. Railway detects the port (the app binds `$PORT`) and gives you a
    `*.up.railway.app` URL. Add a custom domain there too if you like
    (e.g. `arbiter.ameenme.dev`).
-5. Visit the URL: `/` is the dashboard, `/docs` the documentation, `/v1/...`
-   the API.
+5. Visit the URL: `/` is the landing page, `/app` the dashboard, `/docs` the
+   documentation, `/v1/...` the API.
 
 That's the whole deploy. The same `Dockerfile` runs on Render, Fly.io, or any
 container host.
