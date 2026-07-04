@@ -293,7 +293,7 @@ Mint a client API key in exchange for an email. Open (no auth).
 A valid email is required (`422` otherwise). Pass the returned key as
 `Authorization: Bearer <key>` on protected endpoints.
 
-## GET /v1/key and POST /v1/key/{action}
+## Managing a key
 
 Manage the calling key (authenticated with that key). `GET /v1/key` returns its
 email, status, and rolling usage:
