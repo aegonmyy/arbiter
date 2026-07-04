@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 export default function IntegrationCard() {
@@ -22,10 +23,16 @@ client = OpenAI({"\n"}
 {"  "}<span className="text-primary">base_url</span>=<span className="text-secondary">&quot;{base}&quot;</span>,{"\n"}
 {"  "}<span className="text-primary">api_key</span>=<span className="text-secondary">&quot;ignored&quot;</span>)
         </pre>
-        <button onClick={copy}
-          className="mt-3 min-h-10 rounded-xl border border-border bg-card px-4 text-xs font-medium transition-all hover:border-primary/50 hover:text-primary">
-          {copied ? "Copied ✓" : "Copy base URL"}
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={copy}
+            className="min-h-10 rounded-xl border border-border bg-card px-4 text-xs font-medium transition-all hover:border-primary/50 hover:text-primary">
+            {copied ? "Copied" : "Copy base URL"}
+          </button>
+          <Link href="/app/playground"
+            className="flex min-h-10 items-center rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
+            Try it in the Playground
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );
