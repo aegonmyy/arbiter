@@ -89,7 +89,8 @@ step lives in the code (`main.py:chat_completions` orchestrates it):
 | `scoring.py` | Objective quality checks for code, math, and structured tasks. |
 | `judge.py` | LLM-as-judge for open-ended and factual tasks. |
 | `policy.py` | The routing brain and persistent memory (SQLite): `choose`, `record`, `report`. |
-| `static/index.html` | The dashboard, served at `/`. |
+| `static/index.html` | The fallback single-file dashboard, served at `/` when the web app has not been built. |
+| `ui/` | The Next.js web app (landing, onboarding, dashboard, docs); exported to static files and served by FastAPI. See [interface.md](interface.md). |
 | `scripts/bench.py` | A workload generator for demos and testing. |
 
 ## State and persistence

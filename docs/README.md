@@ -15,13 +15,17 @@ and integrate it.
   decision.
 - **Integrating an app?** Go straight to [integration.md](integration.md).
 - **Wiring against the HTTP API?** See [api-reference.md](api-reference.md).
+- **Looking at the web app?** See [interface.md](interface.md).
 - **Tuning behaviour?** See [configuration.md](configuration.md).
+- **Deploying?** The repo's `DEPLOY.md` covers the single-service Docker deploy
+  (one image serves the API, the dashboard, and the docs on one URL).
 
 ## The documents
 
 | Document | What it covers |
 |----------|----------------|
 | [architecture.md](architecture.md) | The request lifecycle and how the pieces fit: Classify -> Filter -> Route -> Grade -> Learn -> React. |
+| [interface.md](interface.md) | The web app: the landing page, the onboarding flow, the dashboard tabs, and the Playground. |
 | [strategies.md](strategies.md) | Each strategy in depth - classification, the context filter, the routing policy, quality scoring, the judge, and price-shift re-exploration - with the trade-offs behind them. |
 | [api-reference.md](api-reference.md) | Every HTTP endpoint, request and response shapes, and the `arbiter` block added to each completion. |
 | [integration.md](integration.md) | Running Arbiter, pointing an OpenAI client at it, and the key / auth model. |

@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "architecture",
+    "interface",
     "strategies",
     "api-reference",
     "integration",

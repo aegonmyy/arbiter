@@ -20,7 +20,7 @@ served by `main.py`. Examples assume the default `http://localhost:8000`.
 | `GET /v1/alerts` | Recent price-shift events. |
 | `POST /v1/simulate-price` | Demo hook: scale a model's cost to imitate a re-price. |
 | `POST /v1/reset` | Clear learned state and feeds for a fresh run. |
-| `GET /` | The dashboard (HTML). |
+| `GET /`, `/app`, `/start`, `/docs` | The web app (see [interface.md](/docs/interface)). |
 
 ---
 
@@ -233,7 +233,26 @@ counters, and any price overrides. Useful before a clean demo run.
 
 ---
 
-## GET /
+## Errors
 
-Serves the dashboard (`static/index.html`), which polls `report`, `overview`,
-`recent`, `alerts`, and `policy` on an interval.
+Validation errors return `422` (for example, a chat request with no `messages`).
+
+When the runtime or an upstream provider rejects a routed call, Arbiter does not
+turn it into an opaque `500`. It surfaces the upstream status directly - a `402`
+(out of credit), `429` (rate limited), or `400` (bad request) is passed through
+with a JSON `detail` describing the upstream error and the model that was tried:
+
+```json
+{ "detail": { "upstream": "btl_runtime", "model": "gpt-4.1-mini", "error": { "...": "..." } } }
+```
+
+A failed call is **not** recorded into the policy, so a transient upstream error
+never poisons what the router has learned. If the runtime is unreachable, a `502`
+is returned instead.
+
+## GET / and the web app
+
+`/`, `/app`, `/start`, and `/docs` serve the web interface
+([interface.md](/docs/interface)). If the interface has not been built, `/` serves
+the fallback single-file dashboard from `static/index.html`, which polls
+`report`, `overview`, `recent`, `alerts`, and `policy` on an interval.

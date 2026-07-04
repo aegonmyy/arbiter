@@ -20,6 +20,7 @@ precedence). See `.env.example`.
 | `BASELINE_MODEL` | `gpt-4o` | The premium model savings are measured against. Must be an OpenAI-surface route (not an Anthropic-direct model). |
 | `BASELINE_CONTEXT` | `128000` | Assumed context window for the baseline, used by the context filter. Change it if you point `BASELINE_MODEL` at a model with a different window. |
 | `REQUEST_TIMEOUT` | `120` | Per-request timeout to the runtime, in seconds. |
+| `ARBITER_DB` | `data/arbiter.db` | Path to the SQLite policy store. Point it at a mounted volume in production so learned state survives redeploys. |
 
 ## The model registry
 

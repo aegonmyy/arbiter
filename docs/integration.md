@@ -33,8 +33,13 @@ BTL_BASE_URL=https://api.badtheorylabs.com/v1
 BASELINE_MODEL=gpt-4o             # what savings are measured against
 ```
 
-Once it's up, open `http://localhost:8000` for the dashboard, or
-`http://localhost:8000/health` to confirm it's live.
+Once it's up, open `http://localhost:8000` for the landing page, `/app` for the
+dashboard, or `/health` to confirm it's live. For the full web app (dashboard,
+Playground, docs) see [interface.md](interface.md).
+
+To deploy the whole thing (API + web app + docs) as one service, see the repo's
+`DEPLOY.md` - a single Docker image builds the web app and serves it alongside
+the API on one URL.
 
 ## Pointing an app at it (client)
 

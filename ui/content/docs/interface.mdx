@@ -1,0 +1,56 @@
+---
+title: "The web interface"
+description: "The landing page, onboarding, dashboard and Playground."
+---
+
+Arbiter ships a web app alongside the API. In a deployment a single service
+serves everything on one origin: the API under `/v1`, this interface, and the
+docs. The interface is a Next.js app exported to static files; the API is
+FastAPI. They share the same design system.
+
+## Routes
+
+| Route | What it is |
+|-------|------------|
+| `/` | Landing page. Explains what Arbiter is, a three-step how-it-works, and the essentials, with live stats pulled from the API. |
+| `/start` | A short onboarding flow. Five digestible screens (what it is, how it decides, the words you will see, good to know, you are ready) with progress and Back/Next. |
+| `/app` | The dashboard. Sectioned into tabs: Overview, Playground, Activity, Models. |
+| `/docs` | This documentation, rendered with Fumadocs. |
+| `/v1/*` | The API (see [api-reference.md](/docs/api-reference)). |
+
+## First-visit gate
+
+First-time visitors are walked through `/start` before the dashboard. A
+`localStorage` flag records that onboarding is done; until it is set, `/app`
+redirects to `/start` and the landing's "enter app" links point there too.
+Returning visitors go straight to `/app` and can skip. This mirrors a normal
+product onboarding: teach the vocabulary once, then get out of the way.
+
+## The dashboard tabs
+
+- **Overview** - the headline stats (saved percent, total saved, spend, calls),
+  a live savings chart, secondary stats (pool size, how requests were
+  classified, price shifts caught), a short how-it-works, and an integration
+  card that links into the Playground.
+- **Playground** - type or pick an example prompt and route it live. The result
+  shows a plain-English summary plus the task, mode, quality, cost, savings and
+  eligible-model count, each with a short hint, and the actual answer. Every run
+  is a real request through the runtime.
+- **Activity** - the live feed of routing decisions and the price-shift alerts.
+- **Models** - the learned policy per task type (which model won where, with
+  quality and average cost) and the baseline settings.
+
+## How it talks to the API
+
+Every screen reads from the API endpoints in [api-reference.md](/docs/api-reference)
+(`/v1/report`, `/v1/overview`, `/v1/recent`, `/v1/alerts`, `/v1/policy`) and the
+Playground posts to `/v1/chat/completions`. Because the interface and API are
+served from the same origin, calls are same-origin with no CORS. In local
+two-process development the Next dev server proxies `/v1` to the backend; see
+[integration.md](/docs/integration).
+
+## Fallback dashboard
+
+If the Next app has not been built, the API serves a single self-contained
+dashboard from `static/index.html` at `/` instead. It covers the same live
+stats, feed, and policy view without a build step.
