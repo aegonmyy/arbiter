@@ -1,16 +1,17 @@
 """LLM-as-judge for tasks with no objective check (open-ended, factual).
 
 Code, math and structured answers get graded by a real check. Everything else
-has no ground truth, so we ask one capable model to rate the answer. To keep
-this from becoming a cost on every request, the caller only judges while it's
-exploring a task type - once a model's quality is known, exploitation reuses
-the learned number instead of paying for another judgement.
+has no ground truth, so we ask a capable model to rate the answer. The judge is
+a free model on the runtime (deepseek-v4-pro), which grades good vs bad answers
+as reliably as a premium model here but costs nothing. The caller still only
+judges while exploring a task type - not for cost, but to avoid adding a call to
+every steady-state request; in exploit mode the learned quality is reused.
 """
 import re
 
 from .btl import BTLClient
 
-JUDGE_MODEL = "gpt-4o"
+JUDGE_MODEL = "deepseek-v4-pro"
 
 _SYSTEM = (
     "You grade an assistant's answer. Rate from 0.0 to 1.0 how well the ANSWER "

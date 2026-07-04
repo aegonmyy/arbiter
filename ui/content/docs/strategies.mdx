@@ -153,19 +153,21 @@ models from bad ones in aggregate, not to certify any single answer.
 **Problem.** Open-ended and factual answers have no objective check, but the
 router still needs a quality number for them.
 
-**Approach** (`judge.py`). Ask one capable model (`gpt-4o`) to rate the answer
-0..1. The key move is *when*: **the judge runs only while exploring a task
+**Approach** (`judge.py`). Ask a capable model to rate the answer 0..1. The
+judge is a **free** runtime model (`deepseek-v4-pro`); on this grading task it
+discriminates good from bad answers as reliably as a premium model, at no cost.
+The key move is still *when*: **the judge runs only while exploring a task
 type.** Once a model's quality for a task is known, exploitation reuses that
 learned number instead of paying for another judgement
 (`main.py:chat_completions` chooses between judging and reusing based on the
 decision mode).
 
-**Why gate it to exploration?** The judge is a premium model. Calling it on
-every open-ended request would add a premium cost to the very traffic we're
-trying to make cheap - self-defeating. Fencing it to exploration makes it a
-bounded, one-time cost per model (a few gradings), folded honestly into the
-"savings ~ 0%" tuition phase. By the time savings climb, the judge has gone
-quiet.
+**Why gate it to exploration?** Even with a free judge, calling it on every
+open-ended request adds a network round-trip to steady-state traffic. Fencing it
+to exploration keeps the hot path fast - the judge grades each model a few times
+while learning, then goes quiet and exploitation reuses the learned number.
+(When the judge was a premium model this also mattered for cost; now it is free,
+so only latency is at stake.)
 
 **Honest limitation.** LLM-as-judge is imperfect and can be biased toward
 verbose answers; and a reused learned score can go stale if a model changes.

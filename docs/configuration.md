@@ -24,13 +24,13 @@ precedence). See `.env.example`.
 The pool of models Arbiter may route to lives in `models.py`:
 
 - `CANDIDATES` - the list of routable models, each a `ModelSpec(id, tier,
-  context)`.
+  context, in_price, out_price)`.
 - `BASELINE` - the premium baseline, built from `BASELINE_MODEL` /
   `BASELINE_CONTEXT`.
 
 ```python
-ModelSpec("deepseek-chat-v3", "small", 128_000)
-#          id                  tier     context window (tokens)
+ModelSpec("deepseek-chat-v3", "small", 128_000, 0.20, 0.80)
+#          id                  tier     context   in     out ($/1M tokens)
 ```
 
 **To add or remove a model**, edit `CANDIDATES`. Each entry needs:
@@ -40,7 +40,8 @@ ModelSpec("deepseek-chat-v3", "small", 128_000)
   (those need `/v1/messages` and are out of scope);
 - a **tier** (`small`/`mid`/`large`) - a rough prior that only affects the order
   models are explored in, not the final choice;
-- the **context window** in tokens, which the filter uses to decide eligibility.
+- the **context window** in tokens, which the filter uses to decide eligibility;
+- the **input/output list prices** (`$/1M tokens`), used by the budget filter.
 
 Keeping the pool modest matters: every new model adds `MIN_SAMPLES` exploration
 calls per task type before the policy can trust it. A wide, well-spread set of a
@@ -53,7 +54,7 @@ Two models play fixed roles rather than being routed to. Both are constants:
 | Constant | File | Default | Role |
 |----------|------|---------|------|
 | `CLASSIFIER_MODEL` | `classifier.py` | `deepseek-v4-flash` | Reads ambiguous prompts to pick a task type. Chosen because it's `$0` on the runtime and, unlike some free models, isn't a reasoning model (see [strategies.md](strategies.md#1-classification--rules-first-a-free-model-on-doubt)). |
-| `JUDGE_MODEL` | `judge.py` | `gpt-4o` | Rates open-ended answers 0..1, during exploration only. |
+| `JUDGE_MODEL` | `judge.py` | `deepseek-v4-pro` | Rates open-ended answers 0..1, during exploration only. |
 
 ## Tunables (the policy thresholds)
 
@@ -78,5 +79,8 @@ For the reasoning behind these mechanisms, see
   product.
 - **Per-user / per-session state.** There is one shared, persistent policy; there
   is no isolation to configure.
-- **Client authentication.** There is none yet; the proxy is open (see
-  [integration.md](integration.md#the-key--auth-model)).
+- **The routing decision itself.** The cheapest-within-tolerance rule is fixed;
+  you tune its thresholds, not the rule.
+
+Client keys and per-key rate limits *are* configurable - see
+[integration.md](integration.md#client-authentication).
