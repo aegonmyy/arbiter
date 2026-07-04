@@ -13,6 +13,7 @@ random exploration rate so shifting prices or models don't go unnoticed.
 import random
 import sqlite3
 import threading
+import time
 from dataclasses import dataclass
 
 from .models import BASELINE, CANDIDATES
@@ -61,7 +62,34 @@ class Policy:
             self._db.execute("ALTER TABLE stats ADD COLUMN tok_sum REAL NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Client API keys minted at signup.
+        self._db.execute(
+            """CREATE TABLE IF NOT EXISTS keys (
+                   key     TEXT PRIMARY KEY,
+                   email   TEXT,
+                   created REAL
+               )"""
+        )
         self._db.commit()
+
+    # -- client keys -------------------------------------------------------
+    def register_key(self, email: str) -> str:
+        import secrets
+        key = "arb_" + secrets.token_hex(24)
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO keys (key, email, created) VALUES (?, ?, ?)",
+                (key, email, time.time()),
+            )
+            self._db.commit()
+        return key
+
+    def is_valid_key(self, key: str) -> bool:
+        if not key:
+            return False
+        with self._lock:
+            cur = self._db.execute("SELECT 1 FROM keys WHERE key=?", (key,))
+            return cur.fetchone() is not None
 
     # -- reads -------------------------------------------------------------
     def _row(self, task: str, model: str) -> tuple[int, float, float]:

@@ -71,6 +71,13 @@ def one_request(client: httpx.Client, url: str) -> None:
     )
 
 
+def _get_key(client: httpx.Client, url: str) -> str:
+    """Mint an API key so the benchmark can authenticate (chat requires one)."""
+    r = client.post(f"{url}/v1/register", json={"email": "bench@arbiter.local"})
+    r.raise_for_status()
+    return r.json()["api_key"]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:8000")
@@ -84,6 +91,8 @@ def main() -> int:
         except Exception:
             print(f"Arbiter is not answering at {args.url}. Start it with scripts/dev.sh")
             return 1
+
+        client.headers["Authorization"] = f"Bearer {_get_key(client, args.url)}"
 
         if args.fresh:
             client.post(f"{args.url}/v1/reset")

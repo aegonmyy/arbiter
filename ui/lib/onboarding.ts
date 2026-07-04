@@ -1,14 +1,18 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const KEY = "arbiter:onboarded";
+const KEY = "arbiter:apikey";
 
-export function markOnboarded() {
-  try { localStorage.setItem(KEY, "1"); } catch {}
+export function saveApiKey(k: string) {
+  try { localStorage.setItem(KEY, k); } catch {}
 }
 
-// Returns null until mounted (unknown), then true/false. Null lets callers
-// avoid a flash of the wrong state during static hydration.
+export function getApiKey(): string {
+  try { return localStorage.getItem(KEY) || ""; } catch { return ""; }
+}
+
+// A visitor is "onboarded" once they hold an API key. Returns null until
+// mounted (unknown), then true/false, so callers avoid a hydration flash.
 export function useOnboarded(): boolean | null {
   const [state, setState] = useState<boolean | null>(null);
   useEffect(() => {

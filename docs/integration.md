@@ -94,20 +94,23 @@ This is the part to understand before exposing Arbiter beyond localhost.
 
 ## Client authentication
 
-Callers can be required to present their own **Arbiter API key** (separate from
-the operator's BTL key). This is opt-in:
+Callers present their own **Arbiter API key** (separate from the operator's BTL
+key) as a Bearer token. The paid endpoint (`/v1/chat/completions`) and the
+control endpoints (`/v1/reset`, `/v1/simulate-price`) require one; a missing or
+invalid key returns `401`. The read-only observability endpoints stay open so
+the dashboard keeps working.
 
-- Leave `ARBITER_API_KEYS` empty and the proxy is **open** - anyone who can reach
-  it is served (the default).
-- Set `ARBITER_API_KEYS` to a comma-separated list and the paid endpoint
-  (`/v1/chat/completions`) and the control endpoints (`/v1/reset`,
-  `/v1/simulate-price`) require `Authorization: Bearer <key>`; a missing or wrong
-  key returns `401`. The read-only observability endpoints stay open so the
-  dashboard keeps working.
+A key is valid if it is either:
 
-```
-ARBITER_API_KEYS=arb_first_key,arb_second_key
-```
+- **Minted at signup.** A user gives an email at `/start` (or `POST /v1/register`)
+  and gets a key back; the web app saves it in the browser and sends it on every
+  Playground request. See [interface.md](interface.md).
+- **Configured by the operator.** `ARBITER_API_KEYS` is a comma-separated list of
+  keys the operator trusts (handy for scripts, ops, or the benchmark):
+
+  ```
+  ARBITER_API_KEYS=arb_first_key,arb_second_key
+  ```
 
 So reaching the endpoint no longer means spending the operator's BTL key - only
 holders of a valid Arbiter key get through. Per-key spend caps are the next

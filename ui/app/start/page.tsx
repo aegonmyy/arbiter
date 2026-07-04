@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { markOnboarded, useOnboarded } from "@/lib/onboarding";
+import { saveApiKey, useOnboarded } from "@/lib/onboarding";
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
@@ -80,6 +81,30 @@ export default function StartPage() {
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
   const onboarded = useOnboarded();
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function finish() {
+    if (busy) return;
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setError("Enter a valid email."); return; }
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch("/v1/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.api_key) { setError("Could not create a key. Try again."); setBusy(false); return; }
+      saveApiKey(data.api_key);
+      router.push("/app/playground");
+    } catch {
+      setError("Could not reach the server. Try again.");
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -109,6 +134,18 @@ export default function StartPage() {
             </p>
             <h1 className="mb-4 text-2xl font-bold tracking-tight">{step.title}</h1>
             {step.body}
+            {last && (
+              <div className="mt-5 space-y-2">
+                <label htmlFor="email" className="text-sm font-medium">Enter your email to get an API key</label>
+                <input id="email" type="email" value={email} inputMode="email" autoComplete="email"
+                  onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") finish(); }}
+                  placeholder="you@example.com"
+                  className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary/50" />
+                <p className="text-xs text-muted-foreground">Your key authenticates your requests and is saved in this browser.</p>
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between gap-3">
@@ -117,9 +154,10 @@ export default function StartPage() {
               Back
             </button>
             {last ? (
-              <Link href="/app/playground" onClick={markOnboarded} className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
-                Launch app
-              </Link>
+              <button onClick={finish} disabled={busy}
+                className="min-h-11 flex-1 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
+                {busy ? "Creating your key..." : "Get my key and launch"}
+              </button>
             ) : (
               <button onClick={() => setI((v) => Math.min(STEPS.length - 1, v + 1))}
                 className="min-h-11 flex-1 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">

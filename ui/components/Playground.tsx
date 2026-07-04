@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { cn, money } from "@/lib/utils";
+import { getApiKey } from "@/lib/onboarding";
 
 interface Result {
   answer: string;
@@ -59,7 +60,7 @@ export default function Playground() {
     try {
       const res = await fetch("/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getApiKey()}` },
         body: JSON.stringify({ model: "auto", messages: [{ role: "user", content: prompt }], max_tokens: 400 }),
       });
       const data = await res.json();

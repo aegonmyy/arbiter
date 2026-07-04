@@ -17,7 +17,12 @@ served by `main.py`. Examples assume the default `http://localhost:8000`.
 | `GET /v1/alerts` | Recent price-shift events. |
 | `POST /v1/simulate-price` | Demo hook: scale a model's cost to imitate a re-price. |
 | `POST /v1/reset` | Clear learned state and feeds for a fresh run. |
+| `POST /v1/register` | Mint a client API key from an email (open, no auth). |
 | `GET /`, `/app`, `/start`, `/docs` | The web app (see [interface.md](interface.md)). |
+
+`/v1/chat/completions`, `/v1/reset` and `/v1/simulate-price` require an
+`Authorization: Bearer <key>` (see [Client authentication](integration.md#client-authentication));
+a missing or invalid key returns `401`. Read-only endpoints are open.
 
 ---
 
@@ -256,9 +261,30 @@ counters, and any price overrides. Useful before a clean demo run.
 
 ---
 
+## POST /v1/register
+
+Mint a client API key in exchange for an email. Open (no auth).
+
+**Request**
+
+```json
+{ "email": "you@example.com" }
+```
+
+**Response**
+
+```json
+{ "api_key": "arb_..." }
+```
+
+A valid email is required (`422` otherwise). Pass the returned key as
+`Authorization: Bearer <key>` on protected endpoints.
+
 ## Errors
 
-Validation errors return `422` (for example, a chat request with no `messages`).
+Validation errors return `422` (for example, a chat request with no `messages`,
+or a register call with a bad email). A protected endpoint called without a valid
+key returns `401`.
 
 When the runtime or an upstream provider rejects a routed call, Arbiter does not
 turn it into an opaque `500`. It surfaces the upstream status directly - a `402`

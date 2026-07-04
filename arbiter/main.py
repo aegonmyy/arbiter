@@ -46,6 +46,17 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@app.post("/v1/register")
+async def register(request: Request) -> dict:
+    """Mint a client API key in exchange for an email. Open (no auth)."""
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(422, "a valid email is required")
+    key = request.app.state.policy.register_key(email)
+    return {"api_key": key}
+
+
 @app.post("/v1/chat/completions", dependencies=[Depends(require_client)])
 async def chat_completions(request: Request):
     """OpenAI-compatible entry point that routes instead of passing through.
