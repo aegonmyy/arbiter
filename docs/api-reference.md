@@ -44,6 +44,11 @@ other field is passed through to the runtime unchanged.
 
 Only `messages` is required (a 422 is returned otherwise).
 
+**Optional budget.** Add `"arbiter_max_cost": <usd>` to cap the per-request cost.
+Arbiter estimates each model's cost for the request from list prices and routes
+only among models within the ceiling (falling back to the cheapest if none fit).
+The field is stripped before the request reaches the runtime.
+
 **Response.** The normal OpenAI completion body, with an added `arbiter` object
 describing the decision:
 
@@ -84,7 +89,9 @@ describing the decision:
 | `baseline_cost` | Learned mean cost of the baseline for this task, or `null` if not yet sampled. |
 | `saved` | `baseline_cost - cost` for this call, or `null` if baseline unknown. |
 | `tokens_needed` | Estimated tokens required (used by the context filter). |
-| `eligible_models` | How many models passed the context filter. |
+| `eligible_models` | How many models passed the context and budget filters. |
+| `budget_max_cost` | The per-request cost ceiling, if `arbiter_max_cost` was set (else `null`). |
+| `budget_met` | Whether any model fit the budget (`false` means it fell back to the cheapest). |
 
 ### Streaming
 

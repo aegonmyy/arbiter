@@ -15,7 +15,7 @@ from .btl import BTLClient, Cost
 from .classify import _last_user_text
 from .classifier import classify_smart
 from .judge import judge
-from .models import fits
+from .models import estimate_cost, fits
 from .policy import ALL_MODELS, Policy
 from .scoring import Score, score
 
@@ -89,8 +89,26 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     # Capability guard: only consider models whose context window fits this
     # prompt (rough 4-chars-per-token estimate plus the requested reply room).
     chars = sum(len(str(m.get("content", ""))) for m in messages)
-    tokens_needed = chars // 4 + int(payload.get("max_tokens", 512))
+    in_tokens = chars // 4
+    out_tokens = int(payload.get("max_tokens", 512))
+    tokens_needed = in_tokens + out_tokens
     eligible = [m for m in ALL_MODELS if fits(m, tokens_needed)]
+
+    # Optional per-request budget ceiling (USD). Estimate each model's cost for
+    # this request from list prices and keep only those within budget. This is a
+    # non-standard field, so pop it before the payload goes to the runtime.
+    max_cost = payload.pop("arbiter_max_cost", None)
+    budget_met = None
+    if max_cost is not None:
+        try:
+            max_cost = float(max_cost)
+        except (TypeError, ValueError):
+            max_cost = None
+    if max_cost is not None and eligible:
+        within = [m for m in eligible if estimate_cost(m, in_tokens, out_tokens) <= max_cost]
+        budget_met = bool(within)
+        # If nothing fits the budget, fall back to the single cheapest estimate.
+        eligible = within or [min(eligible, key=lambda m: estimate_cost(m, in_tokens, out_tokens))]
 
     decision = policy.choose(task.value, allowed=eligible)
 
@@ -170,6 +188,8 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         "saved": saved,
         "tokens_needed": tokens_needed,
         "eligible_models": len(eligible),
+        "budget_max_cost": max_cost,
+        "budget_met": budget_met,
     }
     return body
 

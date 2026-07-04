@@ -16,7 +16,16 @@ interface Result {
   cost: number;
   saved: number | null;
   eligible_models: number;
+  budget_max_cost: number | null;
+  budget_met: boolean | null;
 }
+
+const BUDGETS: { label: string; value: string }[] = [
+  { label: "No cap", value: "" },
+  { label: "$0.0001", value: "0.0001" },
+  { label: "$0.001", value: "0.001" },
+  { label: "$0.01", value: "0.01" },
+];
 
 const EXAMPLES: { label: string; prompt: string }[] = [
   { label: "Math", prompt: "Calculate 47 * 128. Reply with only the number." },
@@ -50,6 +59,7 @@ function summarize(r: Result): string {
 
 export default function Playground() {
   const [prompt, setPrompt] = useState(EXAMPLES[0].prompt);
+  const [budget, setBudget] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,10 +68,14 @@ export default function Playground() {
     if (!prompt.trim() || loading) return;
     setLoading(true); setError(null); setResult(null);
     try {
+      const body: Record<string, unknown> = {
+        model: "auto", messages: [{ role: "user", content: prompt }], max_tokens: 400,
+      };
+      if (budget) body.arbiter_max_cost = Number(budget);
       const res = await fetch("/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getApiKey()}` },
-        body: JSON.stringify({ model: "auto", messages: [{ role: "user", content: prompt }], max_tokens: 400 }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -95,6 +109,18 @@ export default function Playground() {
             rows={5} spellCheck={false}
             className="w-full resize-y rounded-2xl border border-border bg-background px-4 py-3 font-mono text-sm outline-none focus:border-primary/50"
             placeholder="Ask anything..." />
+          <div>
+            <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">Budget - max cost per request</span>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {BUDGETS.map((b) => (
+                <button key={b.label} onClick={() => setBudget(b.value)}
+                  className={cn("rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                    budget === b.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground")}>
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button onClick={run} disabled={loading || !prompt.trim()}
             className="min-h-11 w-full rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
             {loading ? "Routing..." : "Route it"}
@@ -130,7 +156,14 @@ export default function Playground() {
                 <Field label="Cost" hint="what this call actually cost">{money(result.cost)}</Field>
                 <Field label="Saved" hint="vs the premium baseline (gpt-4o)">
                   {result.saved != null && result.saved > 0 ? <span className="text-secondary">-{money(result.saved)}</span> : "-"}</Field>
-                <Field label="Eligible" hint="models whose context fit this prompt">{result.eligible_models} models</Field>
+                <Field label="Eligible" hint="models within context and budget">{result.eligible_models} models</Field>
+                {result.budget_max_cost != null && (
+                  <Field label="Budget" hint="max cost you set for this request">
+                    <span className={cn(result.budget_met === false && "text-destructive")}>
+                      {money(result.budget_max_cost)}{result.budget_met === false ? " (none fit)" : ""}
+                    </span>
+                  </Field>
+                )}
               </div>
               <div>
                 <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">Routed to</span>

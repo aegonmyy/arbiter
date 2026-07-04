@@ -71,6 +71,14 @@ of the cost/quality decision, not something the policy discovers by trial.
 (`gpt-4o`, 128k) is excluded, and routing happens among the large-context models
 only. Correctness first.
 
+**A sibling gate: the budget filter.** A caller can set `arbiter_max_cost` on a
+request. Arbiter estimates each model's cost for that request from the runtime's
+list prices (input tokens from the prompt, output tokens from `max_tokens`) and
+drops any model over the ceiling before routing, falling back to the cheapest if
+none fit. It stacks with the context filter - both narrow the eligible set ahead
+of the cost/quality decision - and lets a caller pick a cost tier even though the
+operator is the one paying.
+
 ---
 
 ## 3. Routing policy - explore, then exploit the cheapest good model
