@@ -1,3 +1,4 @@
+import copy
 import json
 import time
 from contextlib import asynccontextmanager
@@ -11,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from . import config
 from .auth import require_client
 from .btl import BTLClient, Cost
+from .cache import SemanticCache
 from .classify import _last_user_text
 from .classifier import classify_smart
 from .difficulty import route_key as difficulty_key
@@ -29,6 +31,18 @@ MAX_ATTEMPTS = 3
 # Confidence cascade: if an objective check scores the cheap answer below this,
 # escalate once to a stronger model within the same request.
 CASCADE_MIN = 0.5
+
+
+def _cache_key(messages: list[dict]) -> str:
+    """Text used for near-duplicate matching: every message's content joined, so
+    a different system prompt or context won't collide with an unrelated one."""
+    parts = []
+    for m in messages:
+        c = m.get("content", "")
+        if isinstance(c, list):  # OpenAI content-parts form
+            c = " ".join(p.get("text", "") for p in c if isinstance(p, dict))
+        parts.append(str(c))
+    return "\n".join(parts)
 
 
 def _cost_tokens(state, completion) -> tuple[float, int]:
@@ -76,6 +90,8 @@ async def lifespan(app: FastAPI):
     app.state.price_mult = {}
     # Models temporarily skipped after an upstream error: {model: until_ts}.
     app.state.quarantine = {}
+    # Near-duplicate response cache (in-memory; complements the runtime's exact cache).
+    app.state.cache = SemanticCache()
     yield
     await app.state.btl.aclose()
 
@@ -157,6 +173,34 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     prompt = _last_user_text(messages)
     route_key = difficulty_key(task, prompt)
     difficulty = "hard" if route_key.endswith(":hard") else "easy"
+
+    # Near-duplicate cache: if we've already answered a near-identical prompt
+    # well, serve that answer for free instead of routing to a model at all. Skip
+    # for streaming and when the caller opts out with arbiter_no_cache.
+    no_cache = bool(payload.pop("arbiter_no_cache", False))
+    cache_text = _cache_key(messages)
+    if not payload.get("stream") and not no_cache:
+        hit = request.app.state.cache.lookup(cache_text)
+        if hit:
+            data = hit["data"]
+            baseline_cost = policy.baseline_cost(route_key)
+            saved = round(baseline_cost, 8) if baseline_cost is not None else None
+            policy.add_event({
+                "ts": time.time(), "task": task.value, "classified_by": classified_by,
+                "model": data["model"], "mode": "cache",
+                "quality": data["quality"], "cost": 0.0, "saved": saved,
+                "failover_from": None,
+            })
+            body = copy.deepcopy(data["body"])
+            body["arbiter"] = {
+                "task": task.value, "difficulty": difficulty, "cascaded_from": None,
+                "classified_by": classified_by, "model": data["model"], "mode": "cache",
+                "reason": "served from near-duplicate cache", "quality": data["quality"],
+                "quality_reason": "cached answer", "cost": 0.0, "baseline_cost": baseline_cost,
+                "saved": saved, "cache": "hit", "cache_similarity": hit["similarity"],
+                "failover_from": None,
+            }
+            return body
 
     # Capability guard: only consider models whose context window fits this
     # prompt (rough 4-chars-per-token estimate plus the requested reply room).
@@ -324,9 +368,18 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
         "latency_ms": round(latency * 1000),
         "max_latency": max_latency,
         "latency_capped": latency_capped,
+        "cache": "miss",
         # Models that errored before this one served, if any (in-request failover).
         "failover_from": tried or None,
     }
+
+    # Cache this answer for future near-duplicates, but only if it scored well, so
+    # a weak answer is never served repeatedly.
+    if not no_cache and quality.value >= CASCADE_MIN:
+        stored = copy.deepcopy({k: v for k, v in body.items() if k != "arbiter"})
+        request.app.state.cache.store(cache_text, {
+            "body": stored, "model": decision.model, "quality": round(quality.value, 3),
+        })
     return body
 
 
@@ -510,6 +563,7 @@ async def overview(request: Request) -> dict:
         "classifier": st.policy.counters(),
         "alerts": st.policy.alert_count(),
         "active_price_overrides": st.price_mult,
+        "cache_entries": len(st.cache),
     }
 
 
@@ -544,6 +598,7 @@ async def reset(request: Request) -> dict:
     request.app.state.policy.reset()
     request.app.state.policy.clear_metrics()
     request.app.state.price_mult.clear()
+    request.app.state.cache.clear()
     return {"status": "reset"}
 
 
