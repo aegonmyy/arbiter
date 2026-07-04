@@ -14,11 +14,18 @@ from . import config
 
 @dataclass
 class Cost:
-    """What a single call actually cost, pulled from the runtime headers."""
+    """What a single call actually cost, pulled from the runtime headers.
+
+    `charged` is the number that matters to us: the real dollar cost of this
+    call. Routing savings are the difference between the baseline model's
+    charge and the routed model's charge, so we always have a measured figure
+    rather than an estimate.
+    """
 
     charged: float | None = None      # x-btl-customer-charge
-    saved: float | None = None        # x-btl-saved
-    cache_tier: str | None = None     # x-btl-cache-tier
+    saved: float | None = None        # x-btl-saved (runtime-side, e.g. cache)
+    benchmark: float | None = None    # x-btl-benchmark-cost
+    cache_tier: str | None = None     # x-btl-cache-tier (only on cache hits)
 
     @classmethod
     def from_headers(cls, headers: httpx.Headers) -> "Cost":
@@ -34,6 +41,7 @@ class Cost:
         return cls(
             charged=num("x-btl-customer-charge"),
             saved=num("x-btl-saved"),
+            benchmark=num("x-btl-benchmark-cost"),
             cache_tier=headers.get("x-btl-cache-tier"),
         )
 

@@ -43,6 +43,7 @@ async def chat_completions(request: Request):
     body["arbiter"]["cost"] = {
         "charged": completion.cost.charged,
         "saved": completion.cost.saved,
+        "benchmark": completion.cost.benchmark,
         "cache_tier": completion.cost.cache_tier,
     }
     return body
