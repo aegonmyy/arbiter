@@ -11,6 +11,10 @@ export function getApiKey(): string {
   try { return localStorage.getItem(KEY) || ""; } catch { return ""; }
 }
 
+export function clearApiKey() {
+  try { localStorage.removeItem(KEY); } catch {}
+}
+
 // A visitor is "onboarded" once they hold an API key. Returns null until
 // mounted (unknown), then true/false, so callers avoid a hydration flash.
 export function useOnboarded(): boolean | null {

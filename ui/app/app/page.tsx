@@ -2,7 +2,8 @@ import StatsBar from "@/components/StatsBar";
 import MiniStats from "@/components/MiniStats";
 import SavingsChart from "@/components/SavingsChart";
 import IntegrationCard from "@/components/IntegrationCard";
-import { HowItWorks } from "@/components/RightRail";
+import RoutingFeed from "@/components/RoutingFeed";
+import { HowItWorks, PriceAlerts } from "@/components/RightRail";
 import { InfoBanner } from "@/components/ui/InfoBanner";
 
 export default function OverviewPage() {
@@ -16,9 +17,13 @@ export default function OverviewPage() {
       <StatsBar />
       <MiniStats />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2"><SavingsChart /></div>
+        <div className="space-y-5 lg:col-span-2">
+          <SavingsChart />
+          <RoutingFeed />
+        </div>
         <div className="space-y-5">
           <HowItWorks />
+          <PriceAlerts />
           <IntegrationCard />
         </div>
       </div>

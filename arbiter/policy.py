@@ -67,9 +67,14 @@ class Policy:
             """CREATE TABLE IF NOT EXISTS keys (
                    key     TEXT PRIMARY KEY,
                    email   TEXT,
-                   created REAL
+                   created REAL,
+                   status  TEXT NOT NULL DEFAULT 'active'
                )"""
         )
+        try:
+            self._db.execute("ALTER TABLE keys ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # One row per routed request, for per-key rate limits.
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS usage (key TEXT, ts REAL)"
@@ -92,11 +97,41 @@ class Policy:
         return key
 
     def is_valid_key(self, key: str) -> bool:
+        # Valid for authentication if it exists and is not revoked (paused keys
+        # can still authenticate, so a user can resume their own key).
         if not key:
             return False
         with self._lock:
-            cur = self._db.execute("SELECT 1 FROM keys WHERE key=?", (key,))
+            cur = self._db.execute(
+                "SELECT 1 FROM keys WHERE key=? AND status != 'revoked'", (key,))
             return cur.fetchone() is not None
+
+    def key_status(self, key: str) -> str | None:
+        with self._lock:
+            r = self._db.execute("SELECT status FROM keys WHERE key=?", (key,)).fetchone()
+            return r[0] if r else None
+
+    def set_key_status(self, key: str, status: str) -> None:
+        with self._lock:
+            self._db.execute("UPDATE keys SET status=? WHERE key=?", (status, key))
+            self._db.commit()
+
+    def key_info(self, key: str) -> dict | None:
+        now = time.time()
+        with self._lock:
+            r = self._db.execute(
+                "SELECT email, created, status FROM keys WHERE key=?", (key,)).fetchone()
+            if not r:
+                return None
+            c6 = self._db.execute(
+                "SELECT COUNT(*) FROM usage WHERE key=? AND ts>?", (key, now - 6 * 3600)).fetchone()[0]
+            cw = self._db.execute(
+                "SELECT COUNT(*) FROM usage WHERE key=? AND ts>?", (key, now - 7 * 86400)).fetchone()[0]
+        return {
+            "email": r[0], "created": r[1], "status": r[2],
+            "used_6h": c6, "limit_6h": self.RATE_6H,
+            "used_week": cw, "limit_week": self.RATE_WEEK,
+        }
 
     # Per-key rate limits (minted keys only).
     RATE_6H = 50

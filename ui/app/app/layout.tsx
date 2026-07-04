@@ -16,9 +16,9 @@ function PlaygroundIcon({ className }: { className?: string }) {
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.63 8.42m5.96 5.95a14.926 14.926 0 01-5.841 2.58m-4.51-2.58a6 6 0 00-3.86 3.86 6 6 0 00-1.13 3.47 6 6 0 003.47-1.13 6 6 0 003.86-3.86m-4.34 4.34L9 15" />
   </svg>);
 }
-function ActivityIcon({ className }: { className?: string }) {
+function KeyIcon({ className }: { className?: string }) {
   return (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h4.5l1.5-6 3 12 1.5-6h4.5" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
   </svg>);
 }
 function ModelsIcon({ className }: { className?: string }) {
@@ -30,7 +30,7 @@ function ModelsIcon({ className }: { className?: string }) {
 const TABS = [
   { label: "Overview", href: "/app", Icon: OverviewIcon },
   { label: "Playground", href: "/app/playground", Icon: PlaygroundIcon },
-  { label: "Activity", href: "/app/activity", Icon: ActivityIcon },
+  { label: "API key", href: "/app/key", Icon: KeyIcon },
   { label: "Models", href: "/app/models", Icon: ModelsIcon },
 ];
 

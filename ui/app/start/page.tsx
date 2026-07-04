@@ -85,6 +85,8 @@ export default function StartPage() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mintedKey, setMintedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function finish() {
     if (busy) return;
@@ -99,11 +101,47 @@ export default function StartPage() {
       const data = await res.json();
       if (!res.ok || !data.api_key) { setError("Could not create a key. Try again."); setBusy(false); return; }
       saveApiKey(data.api_key);
-      router.push("/app/playground");
+      setMintedKey(data.api_key);
+      setBusy(false);
     } catch {
       setError("Could not reach the server. Try again.");
       setBusy(false);
     }
+  }
+
+  function copyKey() {
+    if (mintedKey) navigator.clipboard?.writeText(mintedKey);
+    setCopied(true); setTimeout(() => setCopied(false), 1200);
+  }
+
+  if (mintedKey) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <header className="flex h-16 items-center px-4 sm:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground shadow-sm">A</div>
+            <span className="text-lg font-semibold tracking-tight">Arbiter</span>
+          </div>
+        </header>
+        <main className="flex flex-1 items-center justify-center px-6 pb-16">
+          <div className="w-full max-w-lg space-y-5">
+            <div className="rounded-[var(--radius)] border border-border bg-card p-6 shadow-sm sm:p-8">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-primary">You&apos;re in</p>
+              <h1 className="mb-2 text-2xl font-bold tracking-tight">Here is your API key</h1>
+              <p className="mb-4 text-sm text-muted-foreground">Copy it now and keep it safe. It authenticates your requests and is saved in this browser. You can manage or revoke it any time from the API key tab.</p>
+              <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-2.5">
+                <code className="flex-1 truncate font-mono text-sm">{mintedKey}</code>
+                <button onClick={copyKey} className="rounded-lg border border-border px-3 py-1 text-xs font-medium hover:border-primary/50 hover:text-primary">{copied ? "Copied" : "Copy"}</button>
+              </div>
+            </div>
+            <button onClick={() => router.push("/app/playground")}
+              className="min-h-11 w-full rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90">
+              Launch app
+            </button>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (

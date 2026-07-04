@@ -35,9 +35,13 @@ product onboarding: teach the vocabulary once, then get out of the way.
   summary plus the task, mode, quality, cost, savings and eligible-model count,
   each with a short hint, and the actual answer. Every run is a real request
   through the runtime.
-- **Activity** - the live feed of routing decisions and the price-shift alerts.
+- **API key** - the control center for your key: copy it, watch usage against
+  the rate limits, and pause, resume or revoke it. The key is shown once at
+  signup, copyable.
 - **Models** - the learned policy per task type (which model won where, with
   quality and average cost) and the baseline settings.
+
+The live routing feed and price alerts live on the Overview tab.
 
 ## How it talks to the API
 

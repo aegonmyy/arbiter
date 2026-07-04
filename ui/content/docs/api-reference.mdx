@@ -22,6 +22,8 @@ served by `main.py`. Examples assume the default `http://localhost:8000`.
 | `POST /v1/simulate-price` | Demo hook: scale a model's cost to imitate a re-price. |
 | `POST /v1/reset` | Clear learned state and feeds for a fresh run. |
 | `POST /v1/register` | Mint a client API key from an email (open, no auth). |
+| `GET /v1/key` | Info and usage for the calling key. |
+| `POST /v1/key/{pause,resume,revoke}` | Change the calling key's status. |
 | `GET /`, `/app`, `/start`, `/docs` | The web app (see [interface.md](/docs/interface)). |
 
 `/v1/chat/completions`, `/v1/reset` and `/v1/simulate-price` require an
@@ -290,6 +292,22 @@ Mint a client API key in exchange for an email. Open (no auth).
 
 A valid email is required (`422` otherwise). Pass the returned key as
 `Authorization: Bearer <key>` on protected endpoints.
+
+## GET /v1/key and POST /v1/key/{action}
+
+Manage the calling key (authenticated with that key). `GET /v1/key` returns its
+email, status, and rolling usage:
+
+```json
+{ "email": "you@example.com", "status": "active",
+  "used_6h": 12, "limit_6h": 50, "used_week": 88, "limit_week": 600 }
+```
+
+`POST /v1/key/pause`, `/resume`, `/revoke` change the status. A paused key still
+authenticates (so it can resume itself) but `/v1/chat/completions` returns `403`
+until resumed. A revoked key stops authenticating entirely. Every routing
+feature - budgets, streaming, and the rest - is on the same API a caller uses;
+the web app just drives it.
 
 ## Errors
 

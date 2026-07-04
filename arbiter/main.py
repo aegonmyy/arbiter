@@ -58,6 +58,30 @@ async def register(request: Request) -> dict:
     return {"api_key": key}
 
 
+@app.get("/v1/key")
+async def key_info(request: Request, client_key: str = Depends(require_client)) -> dict:
+    """Info and usage for the calling key."""
+    if client_key in config.ARBITER_API_KEYS:
+        return {"email": None, "status": "operator",
+                "used_6h": 0, "limit_6h": None, "used_week": 0, "limit_week": None}
+    info = request.app.state.policy.key_info(client_key)
+    if not info:
+        raise HTTPException(404, "key not found")
+    return info
+
+
+@app.post("/v1/key/{action}")
+async def key_action(action: str, request: Request, client_key: str = Depends(require_client)) -> dict:
+    """Pause, resume or revoke the calling key."""
+    status = {"pause": "paused", "resume": "active", "revoke": "revoked"}.get(action)
+    if status is None:
+        raise HTTPException(404, "unknown action")
+    if client_key in config.ARBITER_API_KEYS:
+        raise HTTPException(400, "operator keys cannot be changed here")
+    request.app.state.policy.set_key_status(client_key, status)
+    return {"status": status}
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request, client_key: str = Depends(require_client)):
     """OpenAI-compatible entry point that routes instead of passing through.
@@ -66,8 +90,10 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     runtime, then score the answer and feed quality + measured cost back into
     the policy so the next similar request is routed better.
     """
-    # Rate-limit minted keys (operator keys from ARBITER_API_KEYS are exempt).
+    # Minted keys can be paused and are rate-limited (operator keys are exempt).
     if client_key not in config.ARBITER_API_KEYS:
+        if request.app.state.policy.key_status(client_key) == "paused":
+            raise HTTPException(403, detail={"error": "key_paused", "message": "This API key is paused. Resume it to route again."})
         ok, limit, retry = request.app.state.policy.try_use(client_key)
         if not ok:
             raise HTTPException(
