@@ -3,6 +3,7 @@ from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -72,7 +73,21 @@ async def chat_completions(request: Request):
     # The client's requested model is ignored on purpose — choosing the model
     # is the whole point of Arbiter. We keep every other parameter as-is.
     payload["model"] = decision.model
-    completion = await request.app.state.btl.chat(payload)
+    try:
+        completion = await request.app.state.btl.chat(payload)
+    except httpx.HTTPStatusError as e:
+        # The runtime/provider rejected the call (e.g. 402 out of credit, 429
+        # rate limit, 400 bad request). Surface it cleanly with the upstream
+        # status and don't record a failed attempt into the policy.
+        try:
+            detail = e.response.json()
+        except ValueError:
+            detail = (e.response.text or "")[:300]
+        raise HTTPException(status_code=e.response.status_code,
+                            detail={"upstream": "btl_runtime", "model": decision.model, "error": detail})
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502,
+                            detail={"upstream": "btl_runtime", "error": f"unreachable: {type(e).__name__}"})
 
     prompt = _last_user_text(messages)
     quality = score(task, prompt, completion.text)

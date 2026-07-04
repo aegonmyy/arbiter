@@ -21,19 +21,31 @@ _SYSTEM = (
 _NUMBER = re.compile(r"[01](?:\.\d+)?")
 
 
+# Grading only needs a sample of the text, not the whole thing. Capping the
+# input keeps the judge cheap and stops a large prompt from overflowing the
+# judge model's own context window.
+_MAX_CHARS = 4000
+
+
 async def judge(btl: BTLClient, request_text: str, answer: str,
                 model: str = JUDGE_MODEL) -> float:
     if not answer.strip():
         return 0.0
-    completion = await btl.chat({
-        "model": model,
-        "messages": [
-            {"role": "system", "content": _SYSTEM},
-            {"role": "user", "content": f"REQUEST:\n{request_text}\n\nANSWER:\n{answer}"},
-        ],
-        "max_tokens": 6,
-        "temperature": 0,
-    })
+    req = request_text[:_MAX_CHARS]
+    ans = answer[:_MAX_CHARS]
+    try:
+        completion = await btl.chat({
+            "model": model,
+            "messages": [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user", "content": f"REQUEST:\n{req}\n\nANSWER:\n{ans}"},
+            ],
+            "max_tokens": 6,
+            "temperature": 0,
+        })
+    except Exception:
+        # A judge failure must never fail the user's request; stay neutral.
+        return 0.5
     m = _NUMBER.search(completion.text)
     if not m:
         return 0.5
