@@ -1,0 +1,239 @@
+---
+title: "API reference"
+description: "Every endpoint and the arbiter response block."
+---
+
+Arbiter exposes an OpenAI-compatible chat endpoint plus a handful of read-only
+observability endpoints and two control endpoints for demos. All paths are
+served by `main.py`. Examples assume the default `http://localhost:8000`.
+
+## Summary
+
+| Method & path | Purpose |
+|---------------|---------|
+| `POST /v1/chat/completions` | The router. OpenAI-compatible; returns the completion plus an `arbiter` block. |
+| `GET /health` | Liveness check. |
+| `GET /v1/report` | Cumulative savings versus the baseline. |
+| `GET /v1/policy` | What the router has learned per task type. |
+| `GET /v1/recent` | The most recent routing decisions (newest first). |
+| `GET /v1/overview` | Summary stats: pool size, classifier split, alert count. |
+| `GET /v1/alerts` | Recent price-shift events. |
+| `POST /v1/simulate-price` | Demo hook: scale a model's cost to imitate a re-price. |
+| `POST /v1/reset` | Clear learned state and feeds for a fresh run. |
+| `GET /` | The dashboard (HTML). |
+
+---
+
+## POST /v1/chat/completions
+
+The one endpoint your application calls. It accepts a standard OpenAI chat
+request. **The `model` field is ignored** — Arbiter selects the model. Every
+other field is passed through to the runtime unchanged.
+
+**Request**
+
+```json
+{
+  "model": "anything",
+  "messages": [{"role": "user", "content": "Calculate 6 * 7"}],
+  "max_tokens": 15
+}
+```
+
+Only `messages` is required (a 422 is returned otherwise).
+
+**Response.** The normal OpenAI completion body, with an added `arbiter` object
+describing the decision:
+
+```json
+{
+  "id": "chatcmpl_…",
+  "choices": [{ "message": {"role": "assistant", "content": "42"}, "…": "…" }],
+  "usage": { "total_tokens": 18, "…": "…" },
+  "arbiter": {
+    "task": "math",
+    "classified_by": "rules",
+    "model": "mistral-small-3.2-24b-instruct-2506",
+    "mode": "explore",
+    "reason": "gathering baseline data",
+    "quality": 0.0,
+    "quality_reason": "expected 42, missing",
+    "cost": 5e-06,
+    "baseline_cost": null,
+    "saved": null,
+    "tokens_needed": 18,
+    "eligible_models": 9
+  }
+}
+```
+
+**The `arbiter` block**
+
+| Field | Meaning |
+|-------|---------|
+| `task` | Detected task type: `code`/`math`/`structured`/`factual`/`open`. |
+| `classified_by` | How the task was decided: `rules`, `model`, or `model-fallback`. |
+| `model` | The model Arbiter routed to. |
+| `mode` | `explore` (still learning this model for the task) or `exploit`. |
+| `reason` | Human-readable explanation of the routing decision. |
+| `quality` | Score of this answer, 0..1. |
+| `quality_reason` | How the score was derived (objective check, judge, or learned). |
+| `cost` | The real charge for this call, from `x-btl-customer-charge`. |
+| `baseline_cost` | Learned mean cost of the baseline for this task, or `null` if not yet sampled. |
+| `saved` | `baseline_cost − cost` for this call, or `null` if baseline unknown. |
+| `tokens_needed` | Estimated tokens required (used by the context filter). |
+| `eligible_models` | How many models passed the context filter. |
+
+---
+
+## GET /health
+
+```json
+{ "status": "ok" }
+```
+
+---
+
+## GET /v1/report
+
+Cumulative savings versus running everything on the baseline. Actual spend is
+exact; baseline spend re-prices each call at the baseline's measured mean cost
+per task (see [strategies.md](/docs/strategies#6-measuring-savings--from-headers-not-list-prices)).
+
+```json
+{
+  "calls": 486,
+  "actual_spend": 0.01650,
+  "baseline_spend": 0.05770,
+  "saved": 0.04120,
+  "saved_pct": 71.4
+}
+```
+
+`saved_pct` can be negative early on, while exploration is paying to learn.
+
+---
+
+## GET /v1/policy
+
+What has been learned, grouped by task type. Each row is one model's running
+stats for that task.
+
+```json
+{
+  "code": [
+    { "model": "mistral-small-3.2-24b-instruct-2506", "n": 1, "quality": 0.4, "avg_cost": 6e-06 }
+  ]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `model` | Model id. |
+| `n` | Number of observations for this task. |
+| `quality` | Mean quality, 0..1 (`null` if `n` is 0). |
+| `avg_cost` | Mean measured cost per call. |
+
+---
+
+## GET /v1/recent
+
+The most recent routing decisions, newest first (bounded ring buffer).
+
+```json
+[
+  {
+    "ts": 1783175779.47,
+    "task": "factual",
+    "classified_by": "model",
+    "model": "mistral-small-3.2-24b-instruct-2506",
+    "mode": "explore",
+    "quality": 0.5,
+    "cost": 6e-06,
+    "saved": null
+  }
+]
+```
+
+---
+
+## GET /v1/overview
+
+Summary stats for the dashboard beyond raw savings.
+
+```json
+{
+  "pool_size": 9,
+  "classifier": { "rules": 2, "model": 2, "model-fallback": 0 },
+  "alerts": 0,
+  "active_price_overrides": {}
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `pool_size` | Number of candidate models (baseline included). |
+| `classifier` | Cumulative counts of how requests were classified. |
+| `alerts` | Number of price-shift events recorded. |
+| `active_price_overrides` | Any demo multipliers currently applied. |
+
+---
+
+## GET /v1/alerts
+
+Recent price-shift events that forced a model to be re-learned, newest first.
+
+```json
+[
+  {
+    "task": "math",
+    "model": "mistral-small-3.2-24b-instruct-2506",
+    "old_unit": 4.0e-08,
+    "new_unit": 3.2e-07,
+    "direction": "up",
+    "ts": 1783175800.12
+  }
+]
+```
+
+`old_unit` / `new_unit` are cost-per-token before and after the shift.
+
+---
+
+## POST /v1/simulate-price
+
+Demo hook. Scales a model's reported cost to imitate a provider re-price, so the
+price-shift re-routing can be shown on cue. Set the multiplier back to `1` to
+clear it.
+
+**Request**
+
+```json
+{ "model": "gpt-4o", "multiplier": 2.0 }
+```
+
+**Response**
+
+```json
+{ "model": "gpt-4o", "multiplier": 2.0, "active": { "gpt-4o": 2.0 } }
+```
+
+`model` is required (422 otherwise).
+
+---
+
+## POST /v1/reset
+
+Clears the learned policy, the decision feed, the alerts, the classifier
+counters, and any price overrides. Useful before a clean demo run.
+
+```json
+{ "status": "reset" }
+```
+
+---
+
+## GET /
+
+Serves the dashboard (`static/index.html`), which polls `report`, `overview`,
+`recent`, `alerts`, and `policy` on an interval.

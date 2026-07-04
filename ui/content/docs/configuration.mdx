@@ -1,0 +1,84 @@
+---
+title: "Configuration"
+description: "Environment variables, model registry, and tunables."
+---
+
+Arbiter has three layers of configuration: environment variables (deployment
+settings), the model registry (which models it may route to), and a handful of
+code-level tunables (how it decides). Environment variables are the only ones
+you set without touching code.
+
+## Environment variables
+
+Loaded by `config.py` from `.env` (or the real environment, which takes
+precedence). See `.env.example`.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `GATEWAY_API_KEY` | — (required) | Your BTL machine key. Every runtime call uses it. Arbiter refuses to start a request without it. |
+| `BTL_BASE_URL` | `https://api.badtheorylabs.com/v1` | The runtime's OpenAI-compatible base URL. |
+| `BASELINE_MODEL` | `gpt-4o` | The premium model savings are measured against. Must be an OpenAI-surface route (not an Anthropic-direct model). |
+| `BASELINE_CONTEXT` | `128000` | Assumed context window for the baseline, used by the context filter. Change it if you point `BASELINE_MODEL` at a model with a different window. |
+| `REQUEST_TIMEOUT` | `120` | Per-request timeout to the runtime, in seconds. |
+
+## The model registry
+
+The pool of models Arbiter may route to lives in `models.py`:
+
+- `CANDIDATES` — the list of routable models, each a `ModelSpec(id, tier,
+  context)`.
+- `BASELINE` — the premium baseline, built from `BASELINE_MODEL` /
+  `BASELINE_CONTEXT`.
+
+```python
+ModelSpec("deepseek-chat-v3", "small", 128_000)
+#          id                  tier     context window (tokens)
+```
+
+**To add or remove a model**, edit `CANDIDATES`. Each entry needs:
+
+- an **id** that answers on the `/v1/chat/completions` surface — verify with the
+  runtime's `GET /v1/models`, and confirm it isn't an Anthropic-direct route
+  (those need `/v1/messages` and are out of scope);
+- a **tier** (`small`/`mid`/`large`) — a rough prior that only affects the order
+  models are explored in, not the final choice;
+- the **context window** in tokens, which the filter uses to decide eligibility.
+
+Keeping the pool modest matters: every new model adds `MIN_SAMPLES` exploration
+calls per task type before the policy can trust it. A wide, well-spread set of a
+handful of models routes better and cheaper than a huge one.
+
+## Role models
+
+Two models play fixed roles rather than being routed to. Both are constants:
+
+| Constant | File | Default | Role |
+|----------|------|---------|------|
+| `CLASSIFIER_MODEL` | `classifier.py` | `deepseek-v4-flash` | Reads ambiguous prompts to pick a task type. Chosen because it's `$0` on the runtime and, unlike some free models, isn't a reasoning model (see [strategies.md](/docs/strategies#1-classification--rules-first-a-free-model-on-doubt)). |
+| `JUDGE_MODEL` | `judge.py` | `gpt-4o` | Rates open-ended answers 0..1, during exploration only. |
+
+## Tunables (the policy thresholds)
+
+These live as constants at the top of `policy.py`. They control how the router
+learns and reacts. Defaults are chosen to keep the cold start cheap and price
+detection quiet; adjust with the trade-offs in mind.
+
+| Constant | Default | Effect | Raise it to… |
+|----------|---------|--------|--------------|
+| `MIN_SAMPLES` | `2` | Observations per model before its numbers are trusted. | Trust the data more, at a longer/costlier cold start. |
+| `EPSILON` | `0.10` | Steady-state chance of re-exploring instead of exploiting. | React faster to drift, at slightly higher steady-state cost. |
+| `QUALITY_TOLERANCE` | `0.05` | How much quality you'll trade for a cheaper model. | Prefer cheaper models more aggressively (accepting more quality risk). |
+| `PRICE_SHIFT` | `0.75` | Unit-price move that triggers re-learning a model. | Ignore more price noise; lower it to react to smaller moves (risking false alerts). |
+| `MIN_TOKENS_FOR_PRICE` | `40` | Token history required before price detection runs. | Reduce false price alerts on tiny, rounding-noisy calls. |
+
+For the reasoning behind these mechanisms, see
+[strategies.md](/docs/strategies).
+
+## What is *not* configurable (by design)
+
+- **The caller's `model` field.** Always ignored — choosing the model is the
+  product.
+- **Per-user / per-session state.** There is one shared, persistent policy; there
+  is no isolation to configure.
+- **Client authentication.** There is none yet; the proxy is open (see
+  [integration.md](/docs/integration#the-key--auth-model)).

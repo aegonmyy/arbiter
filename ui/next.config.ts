@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { createMDX } from "fumadocs-mdx/next";
 
 // The dashboard talks to the Arbiter proxy. We proxy /v1/* through the Next
 // server so the browser makes same-origin calls (no CORS) in dev and prod.
@@ -10,4 +11,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default createMDX()(nextConfig);
