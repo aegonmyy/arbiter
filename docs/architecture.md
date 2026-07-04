@@ -1,0 +1,119 @@
+# Architecture
+
+Arbiter is a small FastAPI service that speaks the OpenAI chat-completions
+protocol on its front, and calls the BTL runtime on its back. Between the two it
+runs a fixed pipeline that decides *which* model should answer, checks the
+answer, and learns from the result.
+
+This document is the map. For the reasoning behind each stage, see
+[strategies.md](strategies.md); for the HTTP surface, see
+[api-reference.md](api-reference.md).
+
+## The pipeline
+
+Every chat request flows through the same six stages:
+
+```
+        OpenAI-compatible request
+                 │
+                 ▼
+   ┌───────────────────────────┐
+   │ 1. CLASSIFY               │  rules first; a free model when ambiguous
+   │    classifier.py          │  → task type (code/math/structured/…)
+   ├───────────────────────────┤
+   │ 2. FILTER                 │  drop models whose context can't hold
+   │    models.py: fits        │  the prompt → eligible set
+   ├───────────────────────────┤
+   │ 3. ROUTE                  │  explore new models, else exploit the
+   │    policy.py: choose      │  cheapest within tolerance of the best
+   ├───────────────────────────┤
+   │ 4. CALL                   │  send chosen model to the runtime,
+   │    btl.py: chat           │  capture answer + cost headers
+   ├───────────────────────────┤
+   │ 5. GRADE                  │  objective check, or the judge for
+   │    scoring.py / judge.py  │  open-ended tasks → quality 0..1
+   ├───────────────────────────┤
+   │ 6. LEARN / REACT          │  fold cost + quality into the policy;
+   │    policy.py: record      │  a price move re-opens exploration
+   └───────────────────────────┘
+                 │
+                 ▼
+      answer + arbiter metadata
+```
+
+Stages 1–3 are free and fast (no model call, except the ambiguous-classify
+case). The paid work is stage 4 — and, during exploration only, stage 5's judge.
+
+## The request lifecycle, end to end
+
+This is what happens for a single `POST /v1/chat/completions`, and where each
+step lives in the code (`main.py:chat_completions` orchestrates it):
+
+1. **Parse.** The request must contain `messages`. The `model` field the caller
+   sent is intentionally ignored — choosing the model is Arbiter's job.
+2. **Classify** (`classifier.py:classify_smart`). Rules bucket the request
+   instantly; if none match, a free model reads it. Result: a task type plus how
+   it was decided (`rules` / `model` / `model-fallback`).
+3. **Filter** (`models.py:fits`). Estimate the tokens the request needs
+   (~4 chars per token plus the requested `max_tokens`) and keep only models
+   whose context window fits. This is a correctness guard, ahead of cost.
+4. **Route** (`policy.py:choose`). Given the task and the eligible set, the
+   policy returns a `Decision` — a model, a mode (`explore`/`exploit`), and a
+   human-readable reason.
+5. **Call** (`btl.py:chat`). The chosen model id is written into the payload and
+   sent to the runtime. The response comes back with the answer and the cost
+   headers parsed into a `Cost`.
+6. **Grade** (`scoring.py:score`, `judge.py:judge`). Objective tasks are checked
+   directly (code parses, arithmetic matches, JSON is valid). Open-ended tasks
+   get a neutral score here and are sent to the judge — but only while exploring;
+   in exploit mode the learned quality is reused.
+7. **Learn / react** (`policy.py:record`). The measured cost and quality are
+   folded into the policy. If the model's cost-per-token has moved beyond the
+   threshold, its stats are wiped so it is re-priced and re-routed.
+8. **Respond.** The original OpenAI response is returned, plus an `arbiter`
+   block describing the decision, quality, cost, and savings.
+
+## Component map
+
+| File | Responsibility |
+|------|----------------|
+| `main.py` | FastAPI app; orchestrates the lifecycle above; owns the HTTP endpoints and the in-memory feeds. |
+| `config.py` | Loads settings from `.env` / environment (key, base URL, baseline model, timeout). |
+| `btl.py` | The only place that calls the runtime. `BTLClient.chat` plus the `Cost` and `Completion` value objects. |
+| `classify.py` | Deterministic rule-based classification and the shared text helpers. |
+| `classifier.py` | The hybrid classifier: rules first, then a free model on ambiguity. |
+| `models.py` | The candidate model registry, the baseline, context windows, and the `fits` guard. |
+| `scoring.py` | Objective quality checks for code, math, and structured tasks. |
+| `judge.py` | LLM-as-judge for open-ended and factual tasks. |
+| `policy.py` | The routing brain and persistent memory (SQLite): `choose`, `record`, `report`. |
+| `static/index.html` | The dashboard, served at `/`. |
+| `scripts/bench.py` | A workload generator for demos and testing. |
+
+## State and persistence
+
+Arbiter keeps two kinds of state:
+
+- **Learned policy — on disk, shared, persistent.** The per-task, per-model
+  quality and cost stats live in a SQLite database (`data/arbiter.db`). There is
+  one shared brain: every request reads from and writes to it, regardless of who
+  sent the request or in what session, and it survives restarts. There is no
+  per-user or per-session isolation.
+- **Live feeds — in memory, ephemeral.** The recent-decisions feed, the
+  price-shift alerts, the classifier counters, and the demo price multipliers
+  live in `app.state` and reset when the process restarts.
+
+## Where Arbiter touches the runtime
+
+BTL is load-bearing in four distinct places, not one:
+
+1. **Answering requests** — the routed model call (`btl.py:chat`).
+2. **Classifying** — the free model used for ambiguous prompts
+   (`classifier.py`).
+3. **Judging** — the quality rater for open-ended tasks, during exploration
+   (`judge.py`).
+4. **Measuring and reacting to cost** — the `x-btl-*` headers drive both the
+   savings figures and the price-shift detector (`btl.py:Cost`,
+   `policy.py:record`).
+
+Every one of these runs through a single BTL key on the `/v1/chat/completions`
+surface. The reasoning behind each is in [strategies.md](strategies.md).
