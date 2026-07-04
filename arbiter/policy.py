@@ -114,6 +114,12 @@ class Policy:
             )
             self._db.commit()
 
+    def reset(self) -> None:
+        """Wipe learned state — handy for a clean demo run."""
+        with self._lock:
+            self._db.execute("DELETE FROM stats")
+            self._db.commit()
+
     # -- reporting ---------------------------------------------------------
     def report(self) -> dict:
         """Cumulative savings vs. running everything on the baseline.

@@ -104,6 +104,14 @@ async def recent(request: Request) -> list:
     return list(request.app.state.recent)
 
 
+@app.post("/v1/reset")
+async def reset(request: Request) -> dict:
+    """Clear learned state and the decision feed for a fresh demo run."""
+    request.app.state.policy.reset()
+    request.app.state.recent.clear()
+    return {"status": "reset"}
+
+
 @app.get("/")
 async def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
