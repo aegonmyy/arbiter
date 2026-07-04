@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { cn, bigMoney } from "@/lib/utils";
-import { useReport } from "@/lib/api";
+import { cn, bigMoney, money } from "@/lib/utils";
+import { useReport, usePolicy } from "@/lib/api";
 
 function useAnimated(value: number | undefined) {
   const [display, setDisplay] = useState<number | null>(null);
@@ -46,17 +46,19 @@ function Stat({ label, value, render, sub, className }: {
 
 export default function StatsBar() {
   const { data } = useReport();
-  const proj = data && data.calls > 0 ? (data.saved / data.calls) * 1e6 : undefined;
+  const { data: pol } = usePolicy();
+  const avg = data && data.calls > 0 ? data.actual_spend / data.calls : undefined;
+  const tasks = pol ? Object.keys(pol).length : undefined;
   return (
     <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <Stat label="Saved vs baseline" value={data?.saved_pct} render={(v) => v.toFixed(1) + "%"}
-        sub="cheaper than always-baseline" className="text-secondary" />
-      <Stat label="Total saved" value={data?.saved} render={bigMoney}
-        sub={proj != null ? `~ ${bigMoney(proj)} per 1M requests` : "measuring..."} />
-      <Stat label="Actual spend" value={data?.actual_spend} render={bigMoney}
-        sub={data ? `vs ${bigMoney(data.baseline_spend)} on baseline` : "-"} />
       <Stat label="Calls routed" value={data?.calls} render={(v) => Math.round(v).toLocaleString()}
         sub="across all task types" className="text-primary" />
+      <Stat label="Total spend" value={data?.actual_spend} render={bigMoney}
+        sub="on the routed models" className="text-secondary" />
+      <Stat label="Avg cost / call" value={avg} render={(v) => money(v, 6)}
+        sub="what each request cost" />
+      <Stat label="Task types learned" value={tasks} render={(v) => String(Math.round(v))}
+        sub="code, math, structured, ..." />
     </section>
   );
 }

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, bigMoney } from "@/lib/utils";
 import { useReport, useOverview } from "@/lib/api";
 import { useOnboarded } from "@/lib/onboarding";
 
@@ -31,10 +31,10 @@ function Hero() {
   const { data: overview } = useOverview();
   const onboarded = useOnboarded();
   const stats = [
-    { label: "Saved vs baseline", value: report ? `${report.saved_pct.toFixed(0)}%` : null, accent: "text-secondary" },
-    { label: "Calls routed", value: report ? report.calls.toLocaleString() : null, accent: "text-foreground" },
+    { label: "Calls routed", value: report ? report.calls.toLocaleString() : null, accent: "text-primary" },
+    { label: "Total spend", value: report ? bigMoney(report.actual_spend) : null, accent: "text-secondary" },
     { label: "Models in pool", value: overview ? String(overview.pool_size) : null, accent: "text-foreground" },
-    { label: "Task types", value: "5", accent: "text-primary" },
+    { label: "Task types", value: "5", accent: "text-foreground" },
   ];
   return (
     <section className="mx-auto max-w-3xl space-y-8 px-6 pb-24 pt-40 text-center">

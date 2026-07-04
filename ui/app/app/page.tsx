@@ -1,6 +1,5 @@
 import StatsBar from "@/components/StatsBar";
 import MiniStats from "@/components/MiniStats";
-import SavingsChart from "@/components/SavingsChart";
 import IntegrationCard from "@/components/IntegrationCard";
 import RoutingFeed from "@/components/RoutingFeed";
 import { HowItWorks, PriceAlerts } from "@/components/RightRail";
@@ -18,7 +17,6 @@ export default function OverviewPage() {
       <MiniStats />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
-          <SavingsChart />
           <RoutingFeed />
         </div>
         <div className="space-y-5">

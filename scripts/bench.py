@@ -58,30 +58,33 @@ PROMPTS: dict[str, list[str]] = {
 }
 
 
-def one_request(client: httpx.Client, url: str) -> None:
+def one_request(client: httpx.Client, url: str, max_tokens: int, free: bool) -> None:
     task = random.choice(list(PROMPTS))
     prompt = random.choice(PROMPTS[task])
-    client.post(
-        f"{url}/v1/chat/completions",
-        json={
-            "model": "auto",  # ignored by Arbiter on purpose
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 160,
-        },
-    )
+    body = {
+        "model": "auto",  # ignored by Arbiter on purpose
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+    }
+    if free:
+        body["arbiter_max_cost"] = 0  # route only among $0 models
+    client.post(f"{url}/v1/chat/completions", json=body)
 
 
-def _get_key(client: httpx.Client, url: str) -> str:
-    """Mint an API key so the benchmark can authenticate (chat requires one)."""
+def _new_key(client: httpx.Client, url: str) -> None:
+    """Mint a fresh API key and use it. Rotating keys keeps each one under the
+    per-key rate limit, so the benchmark can send unlimited volume."""
     r = client.post(f"{url}/v1/register", json={"email": "bench@arbiter.local"})
     r.raise_for_status()
-    return r.json()["api_key"]
+    client.headers["Authorization"] = f"Bearer {r.json()['api_key']}"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://localhost:8000")
     ap.add_argument("--n", type=int, default=300, help="number of requests")
+    ap.add_argument("--max-tokens", type=int, default=24, help="reply length (small = cheap)")
+    ap.add_argument("--free", action="store_true", help="route only among $0 models")
     ap.add_argument("--fresh", action="store_true", help="reset learned state first")
     args = ap.parse_args()
 
@@ -92,28 +95,29 @@ def main() -> int:
             print(f"Arbiter is not answering at {args.url}. Start it with scripts/dev.sh")
             return 1
 
-        client.headers["Authorization"] = f"Bearer {_get_key(client, args.url)}"
+        _new_key(client, args.url)
 
         if args.fresh:
             client.post(f"{args.url}/v1/reset")
             print("reset learned state\n")
 
         start = time.time()
+        on_key = 0
         for i in range(1, args.n + 1):
-            one_request(client, args.url)
-            if i % 10 == 0 or i == args.n:
+            if on_key >= 45:  # stay under the 50/6h per-key limit
+                _new_key(client, args.url)
+                on_key = 0
+            one_request(client, args.url, args.max_tokens, args.free)
+            on_key += 1
+            if i % 20 == 0 or i == args.n:
                 rep = client.get(f"{args.url}/v1/report").json()
-                bar = "#" * int(rep["saved_pct"] / 4)
-                print(
-                    f"  {i:4d}/{args.n}  saved {rep['saved_pct']:5.1f}%  "
-                    f"spend ${rep['actual_spend']:.5f} vs ${rep['baseline_spend']:.5f}  {bar}"
-                )
+                avg = rep["actual_spend"] / rep["calls"] if rep["calls"] else 0
+                print(f"  {i:5d}/{args.n}  calls={rep['calls']:<6} spend=${rep['actual_spend']:.5f}  avg=${avg:.7f}/call")
 
         rep = client.get(f"{args.url}/v1/report").json()
         pol = client.get(f"{args.url}/v1/policy").json()
         dur = time.time() - start
-        print(f"\nDone: {rep['calls']} calls in {dur:.0f}s")
-        print(f"Saved {rep['saved_pct']:.1f}%  (${rep['saved']:.5f} of ${rep['baseline_spend']:.5f})")
+        print(f"\nDone: {rep['calls']} calls in {dur:.0f}s, spend ${rep['actual_spend']:.5f}")
         print("\nChosen model per task (cheapest within tolerance of best quality):")
         for task, rows in pol.items():
             rows = [r for r in rows if r["quality"] is not None]
