@@ -17,7 +17,7 @@ from .classify import _last_user_text
 from .classifier import classify_smart
 from .difficulty import route_key as difficulty_key
 from .judge import judge
-from .models import BASELINE, CANDIDATES, estimate_cost, fits
+from .models import BASELINE, CANDIDATES, estimate_cost, fits, is_known
 from .policy import ALL_MODELS, Policy
 from .priors import prior_quality
 from .scoring import Score, score
@@ -489,6 +489,32 @@ def _stream(request: Request, payload, task, route_key, classified_by, eligible,
         "Cache-Control": "no-cache",
     }
     return StreamingResponse(gen(), media_type="text/event-stream", headers=headers)
+
+
+@app.post("/v1/feedback")
+async def feedback(request: Request, client_key: str = Depends(require_client)) -> dict:
+    """Record human 👍/👎 on a routed answer. This is the strongest quality signal
+    the router has and overrides the model judge over time.
+
+    Body: {"model": "...", "task": "code", "rating": "up"|"down"}. `task` may be a
+    base task or a difficulty sub-bucket (e.g. "code:hard") - use the `task`/
+    `difficulty` from the response's `arbiter` block to target the right one.
+    """
+    body = await request.json()
+    model = (body.get("model") or "").strip()
+    task = (body.get("task") or "").strip()
+    rating = (body.get("rating") or "").strip().lower()
+    if not model or not is_known(model):
+        raise HTTPException(422, "a known 'model' is required")
+    if not task:
+        raise HTTPException(422, "'task' is required")
+    up = rating in ("up", "1", "good", "positive", "thumbs_up")
+    down = rating in ("down", "0", "bad", "negative", "thumbs_down")
+    if not (up or down):
+        raise HTTPException(422, "'rating' must be 'up' or 'down'")
+    request.app.state.policy.add_feedback(task, model, up)
+    u, d = request.app.state.policy.feedback_counts(task, model)
+    return {"task": task, "model": model, "up": u, "down": d}
 
 
 @app.get("/v1/report")

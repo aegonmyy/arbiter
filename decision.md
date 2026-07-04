@@ -9,6 +9,31 @@ Newest entries at the top.
 
 ---
 
+## Stronger quality signals: shipped the feedback loop, deferred the rest (NEEDS YOU)
+
+"Stronger quality signals" (roadmap Phase 2, tagged L) had three parts. I built
+the one that is safe and self-contained and **deferred two that genuinely need
+your call**:
+
+- ✅ **Human 👍/👎 feedback loop** — shipped. `POST /v1/feedback` folds votes into
+  routing quality with high weight (overrides the judge). Safe, no new deps.
+- ⛔ **Sandboxed code execution** (run model-written code against tests instead of
+  only parsing it). **Needs a decision from you:** running untrusted model output
+  requires a real sandbox (container / gVisor / firecracker / a service like
+  Piston or Judge0), which is infra and a security surface I shouldn't stand up
+  unattended. Options when you're back: (a) a hardened subprocess with seccomp +
+  resource limits, (b) an external code-execution service, (c) leave code at
+  "parses" and lean on the feedback loop. My lean: (b) for real use, (c) for the
+  hackathon — the feedback loop already strengthens the signal.
+- ⛔ **Embedding-based grading / semantic cache** — deferred. Needs an embeddings
+  model. BTL may expose one, but I didn't want to hard-code an endpoint I haven't
+  verified. The cache I shipped is lexical (token-set Jaccard); swapping in
+  embeddings is a clean upgrade once we confirm an embeddings route on the runtime.
+
+Neither blocks anything shipped tonight; both are noted in the roadmap.
+
+---
+
 ## Difficulty routing: only hard prompts get a sub-bucket (backward-compatible)
 
 **Decision.** Per-prompt difficulty routing splits each task into `easy`/`hard`,

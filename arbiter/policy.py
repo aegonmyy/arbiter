@@ -42,6 +42,10 @@ Z_THRESHOLD = 4.0
 # only needs one real sample (to learn its cost) before it can be exploited - the
 # prior supplies the quality - which is where cold-start tuition is really spent.
 PRIOR_STRENGTH = 1.5
+# Human 👍/👎 feedback is the strongest quality signal we have: each vote counts
+# for this many pseudo-observations, so a few real ratings override the model
+# judge and the benchmark prior.
+FEEDBACK_WEIGHT = 3.0
 
 
 @dataclass
@@ -128,6 +132,15 @@ class Policy:
         )
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)"
+        )
+        # Human 👍/👎 feedback per task/model - the strongest quality signal.
+        self._db.execute(
+            """CREATE TABLE IF NOT EXISTS feedback (
+                   task TEXT, model TEXT,
+                   up INTEGER NOT NULL DEFAULT 0,
+                   down INTEGER NOT NULL DEFAULT 0,
+                   PRIMARY KEY (task, model)
+               )"""
         )
         self._db.commit()
 
@@ -244,16 +257,40 @@ class Policy:
             return None
         return r[1] / r[0]
 
+    def feedback_counts(self, task: str, model: str) -> tuple[int, int]:
+        r = self._db.execute(
+            "SELECT up, down FROM feedback WHERE task=? AND model=?", (task, model)
+        ).fetchone()
+        return (r[0], r[1]) if r else (0, 0)
+
+    def add_feedback(self, task: str, model: str, up: bool) -> None:
+        col = "up" if up else "down"
+        with self._lock:
+            self._db.execute(
+                f"INSERT INTO feedback (task, model, {col}) VALUES (?, ?, 1) "
+                f"ON CONFLICT(task, model) DO UPDATE SET {col} = {col} + 1",
+                (task, model))
+            self._db.commit()
+
     def _blended_quality(self, task: str, model: str) -> float | None:
-        """Quality estimate used for routing: the measured mean blended with the
-        public-benchmark prior via pseudo-counts, so the prior anchors early,
-        noisy estimates and decays out as real samples accumulate. Returns None
-        only when there is neither data nor a prior."""
+        """Quality estimate used for routing: the measured mean blended, via
+        pseudo-counts, with the benchmark prior and with human 👍/👎 feedback.
+        The prior anchors early noisy estimates and decays; human feedback carries
+        the most weight, so a few votes override the model judge. Returns None
+        only when there is no data, no prior and no feedback."""
         n, q_sum, _ = self._row(task, model)
         prior = prior_quality(task, model)
-        if prior is None:
-            return (q_sum / n) if n else None
-        return (PRIOR_STRENGTH * prior + q_sum) / (PRIOR_STRENGTH + n)
+        up, down = self.feedback_counts(task, model)
+
+        num = q_sum
+        den = n
+        if prior is not None:
+            num += PRIOR_STRENGTH * prior
+            den += PRIOR_STRENGTH
+        if up or down:
+            num += FEEDBACK_WEIGHT * up          # each 👍 is quality 1.0
+            den += FEEDBACK_WEIGHT * (up + down)  # each 👎 is quality 0.0
+        return (num / den) if den else None
 
     # -- decision ----------------------------------------------------------
     def choose(self, task: str, allowed: list[str] | None = None) -> Decision:
@@ -371,9 +408,10 @@ class Policy:
             return shift
 
     def reset(self) -> None:
-        """Wipe learned state - handy for a clean demo run."""
+        """Wipe learned state and human feedback - handy for a clean demo run."""
         with self._lock:
             self._db.execute("DELETE FROM stats")
+            self._db.execute("DELETE FROM feedback")
             self._db.commit()
 
     # -- reporting ---------------------------------------------------------
@@ -415,14 +453,19 @@ class Policy:
         cur = self._db.execute(
             "SELECT task, model, n, q_sum, cost_sum, lat_sum FROM stats ORDER BY task, model"
         )
+        fb = {(t, m): (u, d) for t, m, u, d in
+              self._db.execute("SELECT task, model, up, down FROM feedback").fetchall()}
         tasks: dict[str, list[dict]] = {}
         for task, model, n, q_sum, cost_sum, lat_sum in cur.fetchall():
+            up, down = fb.get((task, model), (0, 0))
             tasks.setdefault(task, []).append({
                 "model": model,
                 "n": n,
                 "quality": round(q_sum / n, 3) if n else None,
                 "avg_cost": round(cost_sum / n, 8) if n else None,
                 "avg_latency_ms": round(lat_sum / n * 1000) if n and lat_sum else None,
+                "up": up,
+                "down": down,
             })
         return tasks
 
