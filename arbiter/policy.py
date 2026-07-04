@@ -70,6 +70,13 @@ class Policy:
                    created REAL
                )"""
         )
+        # One row per routed request, for per-key rate limits.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS usage (key TEXT, ts REAL)"
+        )
+        self._db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_usage_key_ts ON usage (key, ts)"
+        )
         self._db.commit()
 
     # -- client keys -------------------------------------------------------
@@ -90,6 +97,33 @@ class Policy:
         with self._lock:
             cur = self._db.execute("SELECT 1 FROM keys WHERE key=?", (key,))
             return cur.fetchone() is not None
+
+    # Per-key rate limits (minted keys only).
+    RATE_6H = 50
+    RATE_WEEK = 600
+
+    def try_use(self, key: str) -> tuple[bool, str, int]:
+        """Count this request against the key's rolling limits. Returns
+        (allowed, limit_hit, retry_after_seconds). Only records on allow."""
+        now = time.time()
+        w6, ww = now - 6 * 3600, now - 7 * 86400
+        with self._lock:
+            c6 = self._db.execute(
+                "SELECT COUNT(*) FROM usage WHERE key=? AND ts>?", (key, w6)).fetchone()[0]
+            if c6 >= self.RATE_6H:
+                oldest = self._db.execute(
+                    "SELECT MIN(ts) FROM usage WHERE key=? AND ts>?", (key, w6)).fetchone()[0]
+                return False, f"{self.RATE_6H} requests per 6 hours", int(oldest + 6 * 3600 - now) + 1
+            cw = self._db.execute(
+                "SELECT COUNT(*) FROM usage WHERE key=? AND ts>?", (key, ww)).fetchone()[0]
+            if cw >= self.RATE_WEEK:
+                oldest = self._db.execute(
+                    "SELECT MIN(ts) FROM usage WHERE key=? AND ts>?", (key, ww)).fetchone()[0]
+                return False, f"{self.RATE_WEEK} requests per week", int(oldest + 7 * 86400 - now) + 1
+            self._db.execute("INSERT INTO usage (key, ts) VALUES (?, ?)", (key, now))
+            self._db.execute("DELETE FROM usage WHERE ts < ?", (ww,))
+            self._db.commit()
+            return True, "", 0
 
     # -- reads -------------------------------------------------------------
     def _row(self, task: str, model: str) -> tuple[int, float, float]:

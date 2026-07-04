@@ -116,8 +116,12 @@ A key is valid if it is either:
   ```
 
 So reaching the endpoint no longer means spending the operator's BTL key - only
-holders of a valid Arbiter key get through. Per-key spend caps are the next
-hardening step (see [roadmap.md](/docs/roadmap)).
+holders of a valid Arbiter key get through.
+
+**Per-key rate limits.** Minted keys are capped at **50 routed requests per 6
+hours** and **600 per week** (rolling windows). Exceeding a limit returns `429`
+with the limit that was hit and a `Retry-After` header. Operator keys
+(`ARBITER_API_KEYS`) are exempt, so scripts and the benchmark are not throttled.
 
 ## Testing it under load
 

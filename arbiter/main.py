@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import config
 from .auth import require_client
 from .btl import BTLClient, Cost
 from .classify import _last_user_text
@@ -57,14 +58,24 @@ async def register(request: Request) -> dict:
     return {"api_key": key}
 
 
-@app.post("/v1/chat/completions", dependencies=[Depends(require_client)])
-async def chat_completions(request: Request):
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request, client_key: str = Depends(require_client)):
     """OpenAI-compatible entry point that routes instead of passing through.
 
     We classify the request, let the policy pick a model, send it to the
     runtime, then score the answer and feed quality + measured cost back into
     the policy so the next similar request is routed better.
     """
+    # Rate-limit minted keys (operator keys from ARBITER_API_KEYS are exempt).
+    if client_key not in config.ARBITER_API_KEYS:
+        ok, limit, retry = request.app.state.policy.try_use(client_key)
+        if not ok:
+            raise HTTPException(
+                status_code=429,
+                detail={"error": "rate_limited", "limit": limit, "retry_after_seconds": retry},
+                headers={"Retry-After": str(retry)},
+            )
+
     payload = await request.json()
     if "messages" not in payload:
         raise HTTPException(422, "request must include 'messages'")

@@ -287,7 +287,8 @@ A valid email is required (`422` otherwise). Pass the returned key as
 
 Validation errors return `422` (for example, a chat request with no `messages`,
 or a register call with a bad email). A protected endpoint called without a valid
-key returns `401`.
+key returns `401`. A minted key over its rate limit (50 requests per 6 hours or
+600 per week) returns `429` with a `Retry-After` header.
 
 When the runtime or an upstream provider rejects a routed call, Arbiter does not
 turn it into an opaque `500`. It surfaces the upstream status directly - a `402`

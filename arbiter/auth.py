@@ -20,12 +20,12 @@ def _bearer(authorization: str | None) -> str:
     return ""
 
 
-def require_client(request: Request, authorization: str | None = Header(default=None)) -> None:
+def require_client(request: Request, authorization: str | None = Header(default=None)) -> str:
+    """Validate the caller's key and return it. Operator keys (from
+    ARBITER_API_KEYS) and minted keys both pass; anything else is 401."""
     token = _bearer(authorization)
-    if token and token in config.ARBITER_API_KEYS:
-        return
-    if token and request.app.state.policy.is_valid_key(token):
-        return
+    if token and (token in config.ARBITER_API_KEYS or request.app.state.policy.is_valid_key(token)):
+        return token
     raise HTTPException(
         status_code=401,
         detail="Missing or invalid Arbiter API key. Get one at /start, then pass 'Authorization: Bearer <key>'.",
