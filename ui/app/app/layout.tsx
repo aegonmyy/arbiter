@@ -61,7 +61,7 @@ export default function DashLayout({ children }: { children: React.ReactNode }) 
       <header className="fixed left-0 right-0 top-0 z-50 flex h-16 items-center border-b border-border/60 bg-card backdrop-blur-xl">
         <div className="flex w-full items-center justify-between gap-6 px-4 sm:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground shadow-sm">A</div>
+            <img src="/logo.png" alt="Arbiter" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
             <span className="text-lg font-semibold tracking-tight text-foreground">Arbiter</span>
             <span className="ml-1 hidden items-center gap-2 rounded-xl border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground sm:flex">
               <span className="h-2 w-2 rounded-full bg-secondary pulse-dot" /> Live

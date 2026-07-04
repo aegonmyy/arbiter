@@ -119,7 +119,7 @@ export default function StartPage() {
       <div className="flex min-h-screen flex-col bg-background">
         <header className="flex h-16 items-center px-4 sm:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary font-bold text-primary-foreground shadow-sm">A</div>
+            <img src="/logo.png" alt="Arbiter" className="h-9 w-9 rounded-xl object-contain" />
             <span className="text-lg font-semibold tracking-tight">Arbiter</span>
           </div>
         </header>
