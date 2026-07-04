@@ -1,0 +1,14 @@
+# Backend (FastAPI) deploy config for Railway.
+# Set the GATEWAY_API_KEY secret in the dashboard, add a Volume mounted at
+# /app/data, and set ARBITER_DB=/app/data/arbiter.db so learned state survives
+# redeploys.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "uvicorn arbiter.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

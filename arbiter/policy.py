@@ -36,8 +36,11 @@ class Decision:
 
 
 class Policy:
-    def __init__(self, db_path: str = "data/arbiter.db") -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         import os
+        # ARBITER_DB lets a deployment point the store at a mounted volume so
+        # learned state survives redeploys.
+        db_path = db_path or os.environ.get("ARBITER_DB", "data/arbiter.db")
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self._db = sqlite3.connect(db_path, check_same_thread=False)
         self._db.execute("PRAGMA busy_timeout=3000")  # wait rather than error if busy
