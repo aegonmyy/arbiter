@@ -1,13 +1,15 @@
-# Backend (FastAPI) deploy config for Railway.
-# Set the GATEWAY_API_KEY secret in the dashboard, add a Volume mounted at
-# /app/data, and set ARBITER_DB=/app/data/arbiter.db so learned state survives
-# redeploys.
+# Single-service deploy for Railway: one Docker image builds the Next.js UI to a
+# static export and serves it plus the API from one FastAPI process.
+#
+# In the dashboard: set the GATEWAY_API_KEY secret, add a Volume mounted at
+# /app/data, set ARBITER_DB=/app/data/arbiter.db, then generate a public domain
+# (Settings -> Networking -> Generate Domain).
 
 [build]
-builder = "nixpacks"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "uvicorn arbiter.main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"

@@ -1,14 +1,19 @@
 import type { NextConfig } from "next";
 import { createMDX } from "fumadocs-mdx/next";
 
-// The dashboard talks to the Arbiter proxy. We proxy /v1/* through the Next
-// server so the browser makes same-origin calls (no CORS) in dev and prod.
+// Two modes:
+//  - dev / standalone: proxy /v1 to a separate backend (ARBITER_BACKEND).
+//  - export (NEXT_OUTPUT=export): emit a static site that FastAPI serves on the
+//    same origin, so /v1 calls are same-origin and no proxy/CORS is needed.
+const isExport = process.env.NEXT_OUTPUT === "export";
 const backend = process.env.ARBITER_BACKEND ?? "http://localhost:8000";
 
-const nextConfig: NextConfig = {
-  async rewrites() {
-    return [{ source: "/v1/:path*", destination: `${backend}/v1/:path*` }];
-  },
-};
+const nextConfig: NextConfig = isExport
+  ? { output: "export", trailingSlash: true, images: { unoptimized: true } }
+  : {
+      async rewrites() {
+        return [{ source: "/v1/:path*", destination: `${backend}/v1/:path*` }];
+      },
+    };
 
 export default createMDX()(nextConfig);

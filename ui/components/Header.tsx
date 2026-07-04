@@ -13,7 +13,7 @@ export default function Header() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <a href="/docs" className="rounded-xl px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">Docs</a>
+          <a href="/docs/" className="rounded-xl px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">Docs</a>
           <span className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground">
             <span className="h-2 w-2 rounded-full bg-secondary pulse-dot" /> Live
           </span>

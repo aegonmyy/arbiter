@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .btl import BTLClient
 from .classify import _last_user_text
@@ -15,6 +16,8 @@ from .policy import ALL_MODELS, Policy
 from .scoring import Score, score
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+# The exported Next.js UI, if it has been built (docs + rich dashboard).
+UI_OUT = Path(__file__).resolve().parent.parent / "ui" / "out"
 
 
 @asynccontextmanager
@@ -195,6 +198,12 @@ async def reset(request: Request) -> dict:
     return {"status": "reset"}
 
 
-@app.get("/")
-async def dashboard() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+# Serve the UI last, so it never shadows the API routes above. If the Next.js
+# app has been exported to ui/out, serve that (dashboard at / and docs at
+# /docs); otherwise fall back to the built-in single-file dashboard.
+if UI_OUT.is_dir():
+    app.mount("/", StaticFiles(directory=str(UI_OUT), html=True), name="ui")
+else:
+    @app.get("/")
+    async def dashboard() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")

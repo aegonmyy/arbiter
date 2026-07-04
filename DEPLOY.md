@@ -1,64 +1,70 @@
 # Deploying Arbiter
 
-Two pieces: the **backend** (the FastAPI router — required) and the **UI** (the
-Next.js dashboard — optional, since the backend already serves a dashboard at
-`/`).
+**One repo, one service, one URL.** A single Docker image builds the Next.js UI
+to a static export and serves it *and* the API from one FastAPI process. The
+dashboard (`/`), the docs (`/docs`), and the API (`/v1`) all live on the same
+origin — so there's no second deploy, no CORS, and no cross-service wiring.
 
-## Backend → Railway
+## Deploy to Railway
 
-The repo ships `Procfile`, `.python-version`, and `railway.toml`, so Railway
-needs almost no setup.
+The repo ships a `Dockerfile` and `railway.toml`, so Railway builds and runs it
+with almost no setup.
 
-1. **New Project → Deploy from GitHub → `aegonmyy/arbiter`** (root directory =
-   repo root; Nixpacks detects Python from `requirements.txt`).
-2. **Variables:**
+1. **New Project → Deploy from GitHub → `aegonmyy/arbiter`.** Railway sees the
+   `Dockerfile` and uses it (builds the UI, then the Python runtime).
+2. **Variables** (service → Variables):
    | Variable | Value |
    |----------|-------|
-   | `GATEWAY_API_KEY` | your BTL key (`gw_…`) — mark as secret |
+   | `GATEWAY_API_KEY` | your BTL key (`gw_…`) — secret |
    | `BASELINE_MODEL` | `gpt-4o` |
    | `ARBITER_DB` | `/app/data/arbiter.db` |
-3. **Volume:** add one, mount path **`/app/data`**. Without it, the learned
-   routing policy resets on every redeploy (it's a SQLite file).
-4. Deploy. Railway injects `$PORT`; the app binds to it and passes the
-   `/health` check. Add a custom domain (e.g. `arbiter-api.ameenme.dev`).
+3. **Volume:** service → `⌘K`/`Ctrl+K` → *Create Volume* → mount path
+   **`/app/data`**. Without it the learned routing policy (a SQLite file) resets
+   on every redeploy.
+4. **Expose a public URL** — this is the step that's easy to miss. A Railway
+   service is private by default. Open **Settings → Networking → Generate
+   Domain**. Railway detects the port (the app binds `$PORT`) and gives you a
+   `*.up.railway.app` URL. Add a custom domain there too if you like
+   (e.g. `arbiter.ameenme.dev`).
+5. Visit the URL: `/` is the dashboard, `/docs` the documentation, `/v1/...`
+   the API.
 
-That single URL serves the API **and** the built-in dashboard at `/`.
+That's the whole deploy. The same `Dockerfile` runs on Render, Fly.io, or any
+container host.
 
-> The same `Procfile` works on Render, Fly.io, or Heroku — only the volume and
-> variable UI differ.
-
-## UI → Vercel (optional)
-
-1. **New Project → import `aegonmyy/arbiter`**, set **Root Directory = `ui`**.
-   Vercel auto-detects Next.js.
-2. **Variable:** `ARBITER_BACKEND` = the backend's public URL
-   (e.g. `https://arbiter-api.ameenme.dev`). The Next rewrite proxies `/v1/*`
-   there server-side, so the browser makes same-origin calls (no CORS).
-3. Deploy. Add a domain (e.g. `arbiter.ameenme.dev`).
-
-## Environment variables at a glance
-
-**Backend**
+## Environment variables
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `GATEWAY_API_KEY` | yes | — | BTL runtime key; authenticates every runtime call. |
 | `BASELINE_MODEL` | no | `gpt-4o` | Premium model savings are measured against. |
-| `ARBITER_DB` | no | `data/arbiter.db` | SQLite path; point at a volume in production. |
+| `ARBITER_DB` | no | `data/arbiter.db` | SQLite path; point at the volume in production. |
 | `BTL_BASE_URL` | no | `https://api.badtheorylabs.com/v1` | Runtime base URL. |
 | `BASELINE_CONTEXT` | no | `128000` | Baseline context window. |
 | `REQUEST_TIMEOUT` | no | `120` | Per-request timeout (seconds). |
-| `PORT` | injected | — | Provided by the host. |
+| `PORT` | injected | `8000` | Provided by the host. |
 
-**UI**
+## Local development
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `ARBITER_BACKEND` | yes (prod) | `http://localhost:8000` | Backend URL the `/v1` rewrite proxies to. |
+Two ways to run it locally:
+
+- **Fast UI iteration** (hot reload, two processes):
+  ```bash
+  ./scripts/dev.sh              # backend on :8000
+  cd ui && npm run dev          # UI on :3000, proxies /v1 to :8000
+  ```
+- **Production-like** (one process, mirrors the deploy):
+  ```bash
+  cd ui && npm run build:export # writes ui/out
+  cd .. && ./scripts/dev.sh     # FastAPI now serves ui/out at / and /docs
+  ```
+
+`ARBITER_BACKEND` only matters for the two-process dev mode (it tells the Next
+dev server where to proxy `/v1`); it isn't used in the single-service deploy.
 
 ## Security note
 
-The proxy has no client authentication yet — anyone who can reach the backend
-URL spends your BTL key. Until client-auth is added (see
+The proxy has no client authentication yet — anyone who can reach the URL spends
+your BTL key. Until client-auth is added (see
 [docs/roadmap.md](docs/roadmap.md)), keep the URL private and/or set a spend cap
 on your BTL account.
