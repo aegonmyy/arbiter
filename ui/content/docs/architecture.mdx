@@ -82,7 +82,7 @@ step lives in the code (`main.py:chat_completions` orchestrates it):
    a stronger model and keeps the better answer.
 8. **Learn / react** (`policy.py:record`). The measured cost, quality and latency
    are folded into the policy. A statistically significant move in the model's
-   cost-per-token wipes its stats so it is re-priced and re-routed. Human 👍/👎 on
+   cost-per-token wipes its stats so it is re-priced and re-routed. Human thumbs up/down on
    the answer, if sent later, carries the most weight.
 9. **Respond.** The original OpenAI response is returned, plus an `arbiter` block
    describing the decision, quality, cost, latency and cache status.

@@ -57,7 +57,7 @@ export default function ApiKeyCenter() {
     setBusy(false);
   }
 
-  const status = data?.status ?? "…";
+  const status = data?.status ?? "...";
   const paused = status === "paused";
 
   return (

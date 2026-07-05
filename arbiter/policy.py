@@ -42,7 +42,7 @@ Z_THRESHOLD = 4.0
 # only needs one real sample (to learn its cost) before it can be exploited - the
 # prior supplies the quality - which is where cold-start tuition is really spent.
 PRIOR_STRENGTH = 1.5
-# Human 👍/👎 feedback is the strongest quality signal we have: each vote counts
+# Human thumbs up/down feedback is the strongest quality signal we have: each vote counts
 # for this many pseudo-observations, so a few real ratings override the model
 # judge and the benchmark prior.
 FEEDBACK_WEIGHT = 3.0
@@ -133,7 +133,7 @@ class Policy:
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)"
         )
-        # Human 👍/👎 feedback per task/model - the strongest quality signal.
+        # Human thumbs up/down feedback per task/model - the strongest quality signal.
         self._db.execute(
             """CREATE TABLE IF NOT EXISTS feedback (
                    task TEXT, model TEXT,
@@ -274,7 +274,7 @@ class Policy:
 
     def _blended_quality(self, task: str, model: str) -> float | None:
         """Quality estimate used for routing: the measured mean blended, via
-        pseudo-counts, with the benchmark prior and with human 👍/👎 feedback.
+        pseudo-counts, with the benchmark prior and with human thumbs up/down feedback.
         The prior anchors early noisy estimates and decays; human feedback carries
         the most weight, so a few votes override the model judge. Returns None
         only when there is no data, no prior and no feedback."""
@@ -288,8 +288,8 @@ class Policy:
             num += PRIOR_STRENGTH * prior
             den += PRIOR_STRENGTH
         if up or down:
-            num += FEEDBACK_WEIGHT * up          # each 👍 is quality 1.0
-            den += FEEDBACK_WEIGHT * (up + down)  # each 👎 is quality 0.0
+            num += FEEDBACK_WEIGHT * up          # each thumbs-up is quality 1.0
+            den += FEEDBACK_WEIGHT * (up + down)  # each thumbs-down is quality 0.0
         return (num / den) if den else None
 
     # -- decision ----------------------------------------------------------

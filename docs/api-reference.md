@@ -17,7 +17,7 @@ served by `main.py`. Examples use the live host `https://arbiter.ameenme.dev`.
 | `GET /v1/overview` | Summary stats: pool size, classifier split, alert count, cache size. |
 | `GET /v1/pricing` | The runtime's chat-surface catalog with list prices, each tagged `routable`. |
 | `GET /v1/alerts` | Recent price-shift events. |
-| `POST /v1/feedback` | Record human 👍/👎 on a routed answer (strongest quality signal). |
+| `POST /v1/feedback` | Record human thumbs up/down on a routed answer (strongest quality signal). |
 | `POST /v1/simulate-price` | Demo hook: scale a model's cost to imitate a re-price. |
 | `POST /v1/reset` | Clear learned state and feeds for a fresh run. |
 | `POST /v1/register` | Mint a client API key from an email (open, no auth). |
@@ -261,7 +261,7 @@ Summary stats for the dashboard beyond raw savings.
 
 ## POST /v1/feedback
 
-Record human 👍/👎 on a routed answer. This is the strongest quality signal the
+Record human thumbs up/down on a routed answer. This is the strongest quality signal the
 router has and overrides the model judge over a few votes. Requires auth.
 
 **Request**

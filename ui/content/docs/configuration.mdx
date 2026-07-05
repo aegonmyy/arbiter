@@ -79,7 +79,7 @@ detection quiet; adjust with the trade-offs in mind.
 | `PRICE_SHIFT` | `0.75` | Unit-price move that triggers re-learning a model. | Ignore more price noise; lower it to react to smaller moves (risking false alerts). |
 | `MIN_TOKENS_FOR_PRICE` | `40` | Token history required before price detection runs. | Reduce false price alerts on tiny, rounding-noisy calls. |
 | `PRIOR_STRENGTH` | `1.5` | Weight of the benchmark warm-start prior, in pseudo-observations. | Trust the prior longer before live data overrides it. |
-| `FEEDBACK_WEIGHT` | `3.0` | Weight of each human 👍/👎 vote, in pseudo-observations. | Let fewer votes override the judge. |
+| `FEEDBACK_WEIGHT` | `3.0` | Weight of each human thumbs up/down vote, in pseudo-observations. | Let fewer votes override the judge. |
 | `Z_THRESHOLD` / `REL_FLOOR` / `MIN_PRICE_SAMPLES` | `4.0` / `0.10` / `5` | Variance-aware drift detection: a move must be this many sigma *and* this relative size, after this many priced calls. | Catch smaller shifts (lower them) or false-alarm less (raise them). |
 
 A few more live at the top of `main.py`: `MAX_ATTEMPTS` (`3`, models tried per

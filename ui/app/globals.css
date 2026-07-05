@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ─── Light (StreamWage-exact tokens) ───────────────────── */
+/* --- Light (StreamWage-exact tokens) --------------------- */
 :root {
   --background:        #f5f7fa;
   --foreground:        #232323;
@@ -22,7 +22,7 @@
   --nav-bg:            rgba(255,255,255,0.92);
 }
 
-/* ─── Dark ───────────────────────────────────────────────── */
+/* --- Dark ------------------------------------------------- */
 .dark {
   --background:        oklch(0.13 0 0);
   --foreground:        oklch(0.93 0 0);
@@ -43,7 +43,7 @@
   --nav-bg:            oklch(0.15 0 0 / 0.92);
 }
 
-/* ─── Tailwind v4 token mapping ──────────────────────────── */
+/* --- Tailwind v4 token mapping ---------------------------- */
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -68,7 +68,7 @@
   --radius-xl:  calc(var(--radius) + 4px);
 }
 
-/* ─── Base ───────────────────────────────────────────────── */
+/* --- Base ------------------------------------------------- */
 html { font-size: 15px; }
 @media (min-width: 640px) { html { font-size: 16px; } }
 
@@ -84,7 +84,7 @@ body {
 
 .font-mono { font-family: var(--font-geist-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 
-/* ─── Animations ─────────────────────────────────────────── */
+/* --- Animations ------------------------------------------- */
 .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }

@@ -47,7 +47,7 @@ client.chat.completions.create(model="anything", messages=[...])  # model is ign
 │  1. classify ──► task type            rules first, free model  │
 │       │                                on ambiguity            │
 │       ▼                                                         │
-│  2. filter eligible models   context window ∙ budget ∙ live    │
+│  2. filter eligible models   context window / budget / live    │
 │       │                                                         │
 │       ▼                                                         │
 │  3. policy.choose()          explore every candidate a few     │

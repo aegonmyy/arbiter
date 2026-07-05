@@ -40,7 +40,7 @@ itself a small arbitrage: escalate only when it's worth it.
 free models were tested; some - notably `gpt-oss-20b` - are *reasoning* models
 that spend a small token budget "thinking" and return an empty answer. Flash is
 a non-reasoning instruct model that emits the type word directly. (The same trap
-appears again with the judge; see §5.)
+appears again with the judge; see section 5.)
 
 **Honest limitation.** Keyword rules can misfire ("write a poem about
 *calculating* the stars" could read as math). The bucket only needs to be
@@ -112,7 +112,7 @@ eligible models (the baseline included as a candidate):
 **Why include the baseline as a candidate?** Sometimes the premium model really
 is the only one good enough. Treating it as just another candidate means the
 policy can choose it when warranted, and its measured cost is what savings are
-computed against (see §6).
+computed against (see section 6).
 
 **Honest limitation.** With `MIN_SAMPLES = 2`, early estimates are noisy; a model
 can get an unlucky sample. `EPSILON` re-exploration and ongoing traffic correct
@@ -135,7 +135,7 @@ free and with confidence:
 - **structured** - confirm the response contains valid JSON.
 
 These produce a trustworthy 0..1 signal at no cost. Open-ended and factual tasks
-have no ground truth here and get a neutral score, deferred to the judge (§5).
+have no ground truth here and get a neutral score, deferred to the judge (section 5).
 
 **Why syntax-check code instead of running it?** Executing arbitrary
 model-written code is a security risk and needs a sandbox. Parsing catches the
@@ -198,7 +198,7 @@ comparison honest (real numbers on both sides) without paying twice.
 
 **Why this depends on BTL.** A raw provider key gives you a bill, not a
 per-call cost header. This measured-savings story only exists because the runtime
-reports cost per response - which is also why the same signal powers §7.
+reports cost per response - which is also why the same signal powers section 7.
 
 ---
 
@@ -264,7 +264,7 @@ supplies the quality. The priors are approximate and never override live evidenc
 
 ## 10. Failover - route around a broken model within one request
 
-**Problem.** Quarantine (§8) skips a broken model on the *next* request, but the
+**Problem.** Quarantine (section 8) skips a broken model on the *next* request, but the
 request that hit the failure still failed.
 
 **Approach** (`main.py`). When a routed call errors, quarantine that model and
@@ -305,9 +305,9 @@ well-scored answers are cached. The embedding provider is entirely configuration
 
 ## 14. Human feedback and statistical drift
 
-**Approach.** `POST /v1/feedback` folds 👍/👎 into routing quality with enough
+**Approach.** `POST /v1/feedback` folds thumbs up/down into routing quality with enough
 weight (`FEEDBACK_WEIGHT`) to override the judge over a few votes. Separately,
-drift detection (§7) now fires on a move that is *either* large in relative terms
+drift detection (section 7) now fires on a move that is *either* large in relative terms
 *or* statistically significant against the model's own price history (>=
 `Z_THRESHOLD` sigma and >= `REL_FLOOR` in size) - catching small consistent
 shifts early while ignoring ordinary noise.

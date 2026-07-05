@@ -18,7 +18,7 @@ with almost no setup.
    | `GATEWAY_API_KEY` | your BTL key (`gw_...`) - secret |
    | `BASELINE_MODEL` | `gpt-4o` |
    | `ARBITER_DB` | `/app/data/arbiter.db` |
-3. **Volume:** service -> `⌘K`/`Ctrl+K` -> *Create Volume* -> mount path
+3. **Volume:** service -> `Cmd+K`/`Ctrl+K` -> *Create Volume* -> mount path
    **`/app/data`**. Without it the learned routing policy (a SQLite file) resets
    on every redeploy.
 4. **Expose a public URL** - this is the step that's easy to miss. A Railway

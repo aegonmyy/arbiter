@@ -1,4 +1,4 @@
-"""Human 👍/👎 feedback: the strongest quality signal, overrides the judge."""
+"""Human thumbs up/down feedback: the strongest quality signal, overrides the judge."""
 from arbiter.policy import Policy
 from conftest import AUTH, FakeBTL, chat_body
 

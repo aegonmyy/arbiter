@@ -506,7 +506,7 @@ def _stream(request: Request, payload, task, route_key, classified_by, eligible,
 
 @app.post("/v1/feedback")
 async def feedback(request: Request, client_key: str = Depends(require_client)) -> dict:
-    """Record human 👍/👎 on a routed answer. This is the strongest quality signal
+    """Record human thumbs up/down on a routed answer. This is the strongest quality signal
     the router has and overrides the model judge over time.
 
     Body: {"model": "...", "task": "code", "rating": "up"|"down"}. `task` may be a
