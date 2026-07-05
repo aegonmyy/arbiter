@@ -57,7 +57,7 @@ shape.
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:8000/v1", api_key="arb_...")
+client = OpenAI(base_url="https://arbiter.ameenme.dev/v1", api_key="arb_...")
 
 r = client.chat.completions.create(
     model="anything",                       # ignored - Arbiter chooses
@@ -69,7 +69,7 @@ print(r.choices[0].message.content)
 **curl**
 
 ```bash
-curl http://localhost:8000/v1/chat/completions \
+curl https://arbiter.ameenme.dev/v1/chat/completions \
   -H "Authorization: Bearer arb_..." -H "Content-Type: application/json" \
   -d '{"model":"x","messages":[{"role":"user","content":"hi"}]}'
 ```

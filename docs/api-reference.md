@@ -2,7 +2,7 @@
 
 Arbiter exposes an OpenAI-compatible chat endpoint plus a handful of read-only
 observability endpoints and two control endpoints for demos. All paths are
-served by `main.py`. Examples assume the default `http://localhost:8000`.
+served by `main.py`. Examples use the live host `https://arbiter.ameenme.dev`.
 
 ## Summary
 

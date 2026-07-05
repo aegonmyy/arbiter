@@ -10,7 +10,7 @@ list see [api-reference.md](api-reference.md).
 Every request needs an Arbiter API key. Mint one from an email:
 
 ```bash
-curl -X POST https://YOUR_HOST/v1/register \
+curl -X POST https://arbiter.ameenme.dev/v1/register \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com"}'
 # -> { "api_key": "arb_..." }
@@ -28,7 +28,7 @@ The Arbiter key goes where your OpenAI key used to. The SDK sends it as
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="https://YOUR_HOST/v1", api_key="arb_...")
+client = OpenAI(base_url="https://arbiter.ameenme.dev/v1", api_key="arb_...")
 
 r = client.chat.completions.create(
     model="auto",                       # ignored; Arbiter picks the model
@@ -41,7 +41,7 @@ print(r.choices[0].message.content)
 
 ```js
 import OpenAI from "openai";
-const client = new OpenAI({ baseURL: "https://YOUR_HOST/v1", apiKey: "arb_..." });
+const client = new OpenAI({ baseURL: "https://arbiter.ameenme.dev/v1", apiKey: "arb_..." });
 const r = await client.chat.completions.create({
   model: "auto",
   messages: [{ role: "user", content: "Calculate 88 * 12" }],
@@ -51,7 +51,7 @@ const r = await client.chat.completions.create({
 **curl**
 
 ```bash
-curl https://YOUR_HOST/v1/chat/completions \
+curl https://arbiter.ameenme.dev/v1/chat/completions \
   -H "Authorization: Bearer arb_..." -H "Content-Type: application/json" \
   -d '{"model":"auto","messages":[{"role":"user","content":"hi"}]}'
 ```
@@ -98,7 +98,7 @@ const r = await client.chat.completions.create({
 curl (they are just top-level fields in the body):
 
 ```bash
-curl https://YOUR_HOST/v1/chat/completions \
+curl https://arbiter.ameenme.dev/v1/chat/completions \
   -H "Authorization: Bearer arb_..." -H "Content-Type: application/json" \
   -d '{"model":"auto","max_tokens":200,"arbiter_max_cost":0.0005,"arbiter_max_latency":2.0,
        "messages":[{"role":"user","content":"..."}]}'
@@ -152,7 +152,7 @@ response's `arbiter` block (use the difficulty sub-bucket, e.g. `code:hard`, whe
 `difficulty` was `hard`):
 
 ```bash
-curl -X POST https://YOUR_HOST/v1/feedback \
+curl -X POST https://arbiter.ameenme.dev/v1/feedback \
   -H "Authorization: Bearer arb_..." -H "Content-Type: application/json" \
   -d '{"model":"deepseek-v4-flash","task":"code","rating":"up"}'
 ```
@@ -162,10 +162,10 @@ curl -X POST https://YOUR_HOST/v1/feedback \
 All authenticated with the key itself:
 
 ```bash
-curl https://YOUR_HOST/v1/key -H "Authorization: Bearer arb_..."          # usage + status
-curl -X POST https://YOUR_HOST/v1/key/pause  -H "Authorization: Bearer arb_..."
-curl -X POST https://YOUR_HOST/v1/key/resume -H "Authorization: Bearer arb_..."
-curl -X POST https://YOUR_HOST/v1/key/revoke -H "Authorization: Bearer arb_..."
+curl https://arbiter.ameenme.dev/v1/key -H "Authorization: Bearer arb_..."          # usage + status
+curl -X POST https://arbiter.ameenme.dev/v1/key/pause  -H "Authorization: Bearer arb_..."
+curl -X POST https://arbiter.ameenme.dev/v1/key/resume -H "Authorization: Bearer arb_..."
+curl -X POST https://arbiter.ameenme.dev/v1/key/revoke -H "Authorization: Bearer arb_..."
 ```
 
 ## 8. Errors to handle
