@@ -21,26 +21,29 @@ import time
 # (model, quality, cost_per_call). tokens are fixed at 100 so unit price is
 # well-defined and the price-shift detector is armed.
 ARBITRAGE_TASK = "math"
-ARBITRAGE_MODEL = "deepseek-chat-v3"   # cheapest good -> the current pick
-FALLBACK_MODEL = "gpt-4o-mini"         # next-cheapest good -> where it re-routes
+ARBITRAGE_MODEL = "deepseek-chat-v3"                    # cheapest good -> the current pick
+FALLBACK_MODEL = "mistral-small-3.2-24b-instruct-2506"  # next-cheapest good -> re-route target
 
+# Costs are the runtime's real measured per-call charges for a short math prompt,
+# so the learned state matches reality and the re-route lands on a genuinely
+# cheaper model. Free models are given a lower math quality so the paid pick wins.
 _MATH = [
-    ("deepseek-chat-v3", 0.93, 5e-6),
-    ("gpt-4o-mini", 0.95, 8e-6),
-    ("gpt-4o", 0.96, 5e-5),
+    ("deepseek-chat-v3", 0.93, 3e-6),                     # chosen (cheapest good)
+    ("mistral-small-3.2-24b-instruct-2506", 0.94, 4e-6),  # fallback (2nd cheapest good)
+    ("gpt-4.1-mini", 0.90, 9e-6),
+    ("llama-3.1-70b-instruct", 0.91, 1.3e-5),
+    ("gemini-2.5-flash", 0.90, 1.5e-5),
     ("gpt-4.1", 0.95, 6e-5),
     ("gemini-2.5-pro", 0.95, 7e-5),
-    ("gpt-4.1-mini", 0.85, 9e-6),
-    ("gemini-2.5-flash", 0.88, 1.2e-5),
-    ("mistral-small-3.2-24b-instruct-2506", 0.72, 3e-6),
-    ("llama-3.1-70b-instruct", 0.71, 4e-6),
+    ("gpt-4o", 0.96, 8.8e-5),                             # premium baseline
+    ("gpt-4o-mini", 0.94, 1.15e-4),
     ("deepseek-v4-flash", 0.70, 0.0),
     ("deepseek-v4-pro", 0.72, 0.0),
     ("llama-3.3-70b-instruct", 0.70, 0.0),
     ("qwen3-coder-480b-a35b-07-25", 0.68, 0.0),
     ("hermes-3-llama-3.1-405b", 0.70, 0.0),
 ]
-_MATH_SAMPLES = 5
+_MATH_SAMPLES = 12   # enough that the seeded quality outweighs the benchmark prior
 
 # Other task types, seeded lightly for a learned-looking dashboard: each has a
 # cheap/free model it routes to plus the premium baseline for a savings anchor.

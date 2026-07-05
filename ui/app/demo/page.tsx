@@ -69,7 +69,9 @@ export default function DemoPage() {
     return `Cleared the price override on ${ARBITRAGE_MODEL}.`;
   });
   const routeMath = () => act("route", async () => {
-    const d = await post("/v1/chat/completions", { model: "auto", messages: [{ role: "user", content: MATH_PROMPT }], max_tokens: 12 });
+    // Bypass the cache so every click actually routes - otherwise the repeated
+    // prompt would be served from cache and never show the price re-route.
+    const d = await post("/v1/chat/completions", { model: "auto", messages: [{ role: "user", content: MATH_PROMPT }], max_tokens: 12, arbiter_no_cache: true });
     const a = d.arbiter ?? {};
     setRoute({ model: a.model, mode: a.mode, cost: a.cost, task: a.task });
     return `Routed a math request to ${a.model} (${a.mode}), cost ${money(a.cost)}.`;
