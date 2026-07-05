@@ -35,9 +35,10 @@ client = OpenAI(base_url=<span className="text-secondary">&quot;.../v1&quot;</sp
     title: "Classify, filter, route",
     body: (
       <div className="space-y-2.5">
-        <Row k="1. Classify">Sort the request into a task type: code, math, structured, factual, or open.</Row>
-        <Row k="2. Filter">Drop any model whose context window cannot hold the prompt.</Row>
-        <Row k="3. Route">Pick the cheapest model that is still good enough for that task.</Row>
+        <Row k="1. Classify">Sort the request into a task type - code, math, structured, factual, or open - and gauge how hard it is.</Row>
+        <Row k="2. Filter">Keep only models that fit the prompt&apos;s context, your budget, and any latency limit.</Row>
+        <Row k="3. Route">Pick the cheapest model still good enough - or serve a near-duplicate prompt straight from cache, for free.</Row>
+        <Row k="4. Stay reliable">Route around a model that errors mid-request, and re-check when a price moves.</Row>
       </div>
     ),
   },
@@ -46,10 +47,10 @@ client = OpenAI(base_url=<span className="text-secondary">&quot;.../v1&quot;</sp
     title: "Four terms to know",
     body: (
       <div className="space-y-2.5">
-        <Row k="Baseline">The premium default (gpt-4o) savings are measured against.</Row>
         <Row k="Explore vs exploit">Explore = still learning a model. Exploit = using the one it learned is best.</Row>
         <Row k="Quality (0 to 1)">How good the answer was, from an objective check or a judge model.</Row>
-        <Row k="Measured savings">Cost comes from the runtime&apos;s real headers, not list prices.</Row>
+        <Row k="Cost">The real charge for the call, measured from the runtime&apos;s own headers - not list prices.</Row>
+        <Row k="Cache hit">A near-duplicate of an earlier prompt, served from cache for free.</Row>
       </div>
     ),
   },
@@ -58,7 +59,7 @@ client = OpenAI(base_url=<span className="text-secondary">&quot;.../v1&quot;</sp
     title: "A few things that surprise people",
     body: (
       <div className="space-y-2.5">
-        <Row k="Savings start low, then climb">The early explore phase is tuition; it settles into the cheap-and-good model.</Row>
+        <Row k="It gets cheaper as it learns">The early explore phase is tuition; it settles onto the cheap-and-good model for each task.</Row>
         <Row k="Cheapest is not always chosen">On hard tasks it correctly pays more for a model that is actually good enough.</Row>
         <Row k="One shared brain">Learning is global and permanent, not per-user. Every request makes it smarter for everyone.</Row>
       </div>

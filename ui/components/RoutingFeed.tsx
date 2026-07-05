@@ -12,9 +12,7 @@ function Row({ d }: { d: Decision }) {
       <span className="truncate font-mono text-[0.8rem]" title={d.model}>{d.model}</span>
       <span className={cn("rounded-lg px-2 py-0.5 text-[0.63rem] font-semibold uppercase tracking-wide",
         exploit ? "bg-secondary/15 text-secondary" : "bg-primary/12 text-primary")}>{d.mode}</span>
-      {d.saved != null && d.saved > 0
-        ? <span className="text-[0.78rem] font-semibold text-secondary">-{money(d.saved)}</span>
-        : <span className="text-[0.75rem] text-muted-foreground">{money(d.cost)}</span>}
+      <span className="text-[0.75rem] tabular-nums text-muted-foreground">{money(d.cost)}</span>
     </div>
   );
 }

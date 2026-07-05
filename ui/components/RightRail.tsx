@@ -24,9 +24,10 @@ export function PriceAlerts() {
 export function HowItWorks() {
   const items = [
     ["Classify", "rules first; a free model when ambiguous."],
-    ["Filter", "only models whose context fits are eligible."],
-    ["Route", "explore, then exploit the cheapest within tolerance."],
-    ["Measure", "savings come from the runtime's own cost headers."],
+    ["Filter", "keep models that fit the prompt, budget and latency."],
+    ["Route", "explore, then exploit the cheapest good model; cost measured from the runtime's headers."],
+    ["Cache", "a near-duplicate prompt is served for free."],
+    ["Failover", "route around a model that errors, mid-request."],
     ["React", "a price move re-opens exploration and re-routes."],
   ];
   return (

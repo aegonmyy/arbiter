@@ -71,8 +71,8 @@ function Hero() {
 function Steps() {
   const steps = [
     { n: "01", title: "Point your client", body: "Change one base URL and keep your OpenAI code exactly as it is. The model field you send is ignored - choosing the model is Arbiter's whole job." },
-    { n: "02", title: "It routes each request", body: "Arbiter classifies the request, drops any model whose context cannot hold it, and picks the cheapest one that is still good enough for that kind of task." },
-    { n: "03", title: "It proves the savings", body: "Every answer is graded and priced from the runtime's own cost headers. Savings are measured, not guessed, and climb as the router learns." },
+    { n: "02", title: "It routes each request", body: "Arbiter classifies the request, keeps only models that fit its context, budget and latency, and picks the cheapest one still good enough - or serves a near-duplicate from cache for free." },
+    { n: "03", title: "It measures, then improves", body: "Every answer is graded and every call is priced from the runtime's own cost headers - real numbers, not guesses. It routes around model errors on the fly and re-routes when a price moves." },
   ];
   return (
     <section className="border-t border-border py-24">
@@ -105,7 +105,7 @@ function WhyBtl() {
         <h2 className="text-3xl font-bold tracking-tight">None of this works without BTL.</h2>
         <p className="mx-auto max-w-xl text-sm leading-relaxed text-muted-foreground">
           One key reaches many models, and every response reports its real cost. A raw provider key gives you
-          neither. That is exactly why the measured savings and the price-reaction can only exist on top of the
+          neither. That is exactly why the real per-call cost and the price-reaction can only exist on top of the
           runtime - Arbiter routes model choice, the runtime routes providers and reports the bill.
         </p>
       </div>
@@ -139,7 +139,7 @@ function Footer() {
           <img src="/logo.png" alt="Arbiter" className="h-7 w-7 rounded-lg object-contain" />
           <span className="text-sm font-semibold text-foreground/70">Arbiter</span>
         </div>
-        <p className="text-center text-xs text-muted-foreground">Routes model choice on the BTL runtime. Savings measured from real cost headers.</p>
+        <p className="text-center text-xs text-muted-foreground">Routes model choice on the BTL runtime. Per-call cost measured from the runtime&apos;s real headers.</p>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <Link href="/docs/" className="transition-colors hover:text-foreground">Docs</Link>
           <a href="https://github.com/aegonmyy/arbiter" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-foreground">GitHub</a>

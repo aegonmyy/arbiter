@@ -8,6 +8,7 @@ import { usePricing } from "@/lib/api";
 interface Result {
   answer: string;
   task: string;
+  difficulty: string;
   classified_by: string;
   model: string;
   mode: string;
@@ -15,10 +16,15 @@ interface Result {
   quality: number;
   quality_reason: string;
   cost: number;
-  saved: number | null;
+  latency_ms: number;
   eligible_models: number;
   budget_max_cost: number | null;
   budget_met: boolean | null;
+  cache: string;
+  cache_mode: string | null;
+  cache_similarity: number | null;
+  failover_from: string[] | null;
+  cascaded_from: string | null;
 }
 
 // Log-scale budget slider bounds (USD per request).
@@ -45,15 +51,21 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
 }
 
 function summarize(r: Result): string {
+  if (r.cache === "hit") {
+    return `This was a near-duplicate of an earlier prompt, so Arbiter served the stored answer `
+      + `for free - no model call at all (${r.cache_mode} match).`;
+  }
   const how = r.classified_by === "rules" ? "by fast rules" : "by a free model";
-  const learned = r.mode === "exploit"
-    ? "used the cheapest model it has learned is good enough"
-    : "is still exploring, so it tried a model to learn about it";
-  const savings = r.saved != null && r.saved > 0
-    ? ` That's ${money(r.saved)} cheaper than sending it to the premium baseline.`
+  const learned = r.mode === "escalate"
+    ? "the cheap model's answer looked weak, so it escalated to a stronger one"
+    : r.mode === "exploit"
+      ? "used the cheapest model it has learned is good enough"
+      : "is still exploring, so it tried a model to learn about it";
+  const tail = r.failover_from?.length
+    ? ` It first tried ${r.failover_from.join(", ")}, which errored, and failed over.`
     : "";
-  return `Arbiter read this as a ${r.task} task (${how}) and ${learned}: ${r.model}. `
-    + `The answer scored ${r.quality?.toFixed(2)} out of 1 and cost ${money(r.cost)}.${savings}`;
+  return `Arbiter read this as a ${r.difficulty} ${r.task} task (${how}) and ${learned}: ${r.model}. `
+    + `The answer scored ${r.quality?.toFixed(2)} out of 1 and cost ${money(r.cost)}.${tail}`;
 }
 
 const OUT_TOKENS = 400;
@@ -182,15 +194,21 @@ export default function Playground() {
                 {summarize(result)}
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <Field label="Task" hint="what kind of request, and how it was detected">
+                <Field label="Task" hint="kind of request, and how it was detected">
                   <span className="capitalize">{result.task}</span> <span className="text-muted-foreground">- {result.classified_by}</span></Field>
-                <Field label="Mode" hint="explore = still learning - exploit = using what it learned">
+                <Field label="Difficulty" hint="hard prompts route in their own bucket">
+                  <span className="capitalize">{result.difficulty}</span></Field>
+                <Field label="Mode" hint="explore/exploit, escalate (cascade), or cache">
                   <span className={cn(result.mode === "exploit" ? "text-secondary" : "text-primary")}>{result.mode}</span></Field>
                 <Field label="Quality" hint="0-1 score of the answer">{result.quality?.toFixed(2)}</Field>
-                <Field label="Cost" hint="what this call actually cost">{money(result.cost)}</Field>
-                <Field label="Saved" hint="vs the premium baseline (gpt-4o)">
-                  {result.saved != null && result.saved > 0 ? <span className="text-secondary">-{money(result.saved)}</span> : "-"}</Field>
-                <Field label="Eligible" hint="models within context and budget">{result.eligible_models} models</Field>
+                <Field label="Cost" hint="real charge, from the runtime's headers">{money(result.cost)}</Field>
+                <Field label="Latency" hint="how long the call took">
+                  {result.cache === "hit" ? "-" : `${result.latency_ms} ms`}</Field>
+                <Field label="Cache" hint="near-duplicate served free">
+                  {result.cache === "hit"
+                    ? <span className="text-secondary">hit &middot; {result.cache_mode} {result.cache_similarity?.toFixed(2)}</span>
+                    : "miss"}</Field>
+                <Field label="Eligible" hint="models within context, budget and latency">{result.eligible_models} models</Field>
                 {result.budget_max_cost != null && (
                   <Field label="Budget" hint="max cost you set for this request">
                     <span className={cn(result.budget_met === false && "text-destructive")}>
@@ -199,6 +217,12 @@ export default function Playground() {
                   </Field>
                 )}
               </div>
+              {(result.failover_from?.length || result.cascaded_from) && (
+                <p className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                  {result.cascaded_from && <>Escalated from <span className="font-mono">{result.cascaded_from}</span> after its answer failed the check. </>}
+                  {result.failover_from?.length ? <>Failed over from <span className="font-mono">{result.failover_from.join(", ")}</span> after an upstream error.</> : null}
+                </p>
+              )}
               <div>
                 <span className="text-[0.62rem] uppercase tracking-wider text-muted-foreground">Routed to</span>
                 <div className="mt-0.5 truncate font-mono text-sm font-semibold">{result.model}</div>
