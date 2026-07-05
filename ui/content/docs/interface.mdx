@@ -3,6 +3,7 @@ title: "The web interface"
 description: "The landing page, onboarding, dashboard and Playground."
 ---
 
+
 Arbiter ships a web app alongside the API. In a deployment a single service
 serves everything on one origin: the API under `/v1`, this interface, and the
 docs. The interface is a Next.js app exported to static files; the API is
@@ -14,7 +15,7 @@ FastAPI. They share the same design system.
 |-------|------------|
 | `/` | Landing page. Explains what Arbiter is, a three-step how-it-works, and the essentials, with live stats pulled from the API. |
 | `/start` | A short onboarding flow. Five digestible screens (what it is, how it decides, the words you will see, good to know, you are ready) with progress and Back/Next. |
-| `/app` | The dashboard. Sectioned into tabs: Overview, Playground, Activity, Models. |
+| `/app` | The dashboard. Sectioned into tabs: Overview, Playground, API key, Models. |
 | `/docs` | This documentation, rendered with Fumadocs. |
 | `/v1/*` | The API (see [api-reference.md](/docs/api-reference)). |
 
@@ -28,16 +29,19 @@ product onboarding: teach the vocabulary once, then get out of the way.
 
 ## The dashboard tabs
 
-- **Overview** - the headline stats (saved percent, total saved, spend, calls),
-  a live savings chart, secondary stats (pool size, how requests were
-  classified, price shifts caught), a short how-it-works, and an integration
-  card that links into the Playground.
+- **Overview** - the headline stats (calls routed, total spend, average cost per
+  call, task types learned), a live routing feed, secondary stats (pool size, how
+  requests were classified, price shifts caught), price alerts, a short
+  how-it-works, and an integration card that links into the Playground. Per-call
+  cost is measured from the runtime's headers; there is no savings figure on
+  display, since in free-routing mode it stays at zero.
 - **Playground** - type or pick an example prompt and route it live. A budget
-  slider sets a max cost per request and previews, in real time, which models
-  fit that budget for the current prompt. The result shows a plain-English
-  summary plus the task, mode, quality, cost, savings and eligible-model count,
-  each with a short hint, and the actual answer. Every run is a real request
-  through the runtime.
+  slider sets a max cost per request and previews, in real time, which models fit
+  that budget for the current prompt. The result shows a plain-English summary
+  plus the task, difficulty, mode, quality, cost, latency, cache status and
+  eligible-model count, each with a short hint, and the actual answer - and calls
+  out when a request escalated (cascade) or failed over. Every run is a real
+  request through the runtime.
 - **API key** - the control center for your key: copy it, watch usage against
   the rate limits, and pause, resume or revoke it. The key is shown once at
   signup, copyable.

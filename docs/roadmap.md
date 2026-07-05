@@ -17,63 +17,63 @@ Effort is tagged **S** (days), **M** (a week or two), **L** (larger).
 
 What was on the plan and is now built:
 
-- ✅ **Client authentication & multi-tenancy** — per-client keys minted at signup,
+- ✅ **Client authentication & multi-tenancy** - per-client keys minted at signup,
   Bearer-authenticated, with a shared learning policy.
-- ✅ **Budget guardrails** — per-request `arbiter_max_cost` ceiling plus per-key
+- ✅ **Budget guardrails** - per-request `arbiter_max_cost` ceiling plus per-key
   rate limits (50/6h, 600/week).
-- ✅ **Reliability & failover** — a routed model that errors is quarantined *and*
+- ✅ **Reliability & failover** - a routed model that errors is quarantined *and*
   the request fails over to the next-best live model within the same call.
-- ✅ **Streaming responses** — SSE pass-through; the answer is scored and learned
+- ✅ **Streaming responses** - SSE pass-through; the answer is scored and learned
   on completion, priced at the learned average when the runtime omits a cost
   header.
-- ✅ **Durable metrics** — the routing feed, price-shift alerts and classifier
+- ✅ **Durable metrics** - the routing feed, price-shift alerts and classifier
   counters are persisted to the policy store and survive a restart, plus a
   calls/spend time series (`GET /v1/timeseries`).
-- ✅ **Warm-start from public benchmarks** — per-model quality priors seed each
+- ✅ **Warm-start from public benchmarks** - per-model quality priors seed each
   task, decayed by live data, so routing is sensible from the first request.
-- ✅ **Per-prompt difficulty routing** — hard prompts route in their own
+- ✅ **Per-prompt difficulty routing** - hard prompts route in their own
   sub-bucket, paired with an in-request **confidence cascade** (try cheap,
   escalate only when the answer fails its check).
-- ✅ **Semantic caching** — a near-duplicate prompt is served from cache for free.
+- ✅ **Semantic caching** - a near-duplicate prompt is served from cache for free.
   Matches by embedding similarity (meaning) when an embedding provider is
   configured, falling back to local lexical similarity otherwise.
-- ✅ **Statistical drift detection** — price re-exploration now fires on a move
+- ✅ **Statistical drift detection** - price re-exploration now fires on a move
   that is either large *or* statistically significant against a model's own
   price history, so it catches small consistent shifts and false-alarms less.
-- ✅ **Latency-aware routing** — per-model latency is measured and an optional
+- ✅ **Latency-aware routing** - per-model latency is measured and an optional
   `arbiter_max_latency` ceiling filters slow models for interactive paths.
-- ✅ **Human feedback loop** — `POST /v1/feedback` folds 👍/👎 into routing
+- ✅ **Human feedback loop** - `POST /v1/feedback` folds 👍/👎 into routing
   quality with enough weight to override the model judge (the safe part of
   "stronger quality signals" below).
 
-## Next — Harden
+## Next - Harden
 
-- **Horizontal scale** *(L)* — the policy is a single-file SQLite store behind a
+- **Horizontal scale** *(L)* - the policy is a single-file SQLite store behind a
   global lock, fine for one process. Move it to a shared store (Postgres/Redis)
   so multiple Arbiter instances share one brain and scale out.
 
-## Next — Deepen
+## Next - Deepen
 
-- **Stronger quality signals** *(L)* — the biggest remaining lever. Today code is
+- **Stronger quality signals** *(L)* - the biggest remaining lever. Today code is
   only *parsed*, not run. Add **sandboxed code execution** against tests
-  (needs a real sandbox — a security decision) and **embedding-based grading**
+  (needs a real sandbox - a security decision) and **embedding-based grading**
   (reuse the embedding provider to score answers against references). The 👍/👎
   feedback loop above is the first, shipped piece of this.
-- **Warm-start refinement** *(S)* — source the priors from a maintained benchmark
+- **Warm-start refinement** *(S)* - source the priors from a maintained benchmark
   table rather than hand-set values, and decay them per-task by observed variance.
 
-## Next — Expand
+## Next - Expand
 
-- **Anthropic `/v1/messages` surface** *(M)* — the pool is OpenAI-surface only, so
+- **Anthropic `/v1/messages` surface** *(M)* - the pool is OpenAI-surface only, so
   every Claude model is excluded. Add the second protocol surface and translate,
   unlocking a large set of strong models as candidates.
-- **Self-updating registry** *(S)* — auto-discover models, context windows and
+- **Self-updating registry** *(S)* - auto-discover models, context windows and
   prices from `GET /v1/models` instead of a hand-maintained list.
-- **Shadow / challenger routing** *(M)* — send a small traffic slice to new or
+- **Shadow / challenger routing** *(M)* - send a small traffic slice to new or
   candidate models to keep estimates fresh and safely A/B new entrants.
-- **Multi-modal routing** *(L)* — extend classification, scoring and routing to
+- **Multi-modal routing** *(L)* - extend classification, scoring and routing to
   vision and audio, not just text.
-- **Explainability & analytics** *(S)* — a cost/quality Pareto view per task and a
+- **Explainability & analytics** *(S)* - a cost/quality Pareto view per task and a
   per-decision "why this model" trace for auditing.
 
 ---
@@ -82,8 +82,8 @@ What was on the plan and is now built:
 
 To keep focus, Arbiter deliberately does **not** aim to:
 
-- Train or fine-tune its own models — it routes, it doesn't build models.
-- Be a general-purpose API gateway (transformations, etc.) — it stays a *routing*
+- Train or fine-tune its own models - it routes, it doesn't build models.
+- Be a general-purpose API gateway (transformations, etc.) - it stays a *routing*
   layer.
-- Replace the runtime — Arbiter is built *on* BTL and depends on its cost
+- Replace the runtime - Arbiter is built *on* BTL and depends on its cost
   telemetry; it is not a provider abstraction that hides it.

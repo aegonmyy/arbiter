@@ -43,15 +43,17 @@ the API on one URL.
 
 ## Pointing an app at it (client)
 
-Integration is a one-line change: swap the base URL of your existing OpenAI
-client. Keep everything else - the same SDK, the same request shape.
+Integration is essentially a one-line change: swap the base URL of your existing
+OpenAI client, and use an Arbiter key (mint one at `/start` or `POST /v1/register`)
+where your OpenAI key went. Keep everything else - the same SDK, the same request
+shape.
 
 **Python (OpenAI SDK)**
 
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:8000/v1", api_key="ignored")
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="arb_...")
 
 r = client.chat.completions.create(
     model="anything",                       # ignored - Arbiter chooses
@@ -64,12 +66,14 @@ print(r.choices[0].message.content)
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer arb_..." -H "Content-Type: application/json" \
   -d '{"model":"x","messages":[{"role":"user","content":"hi"}]}'
 ```
 
 The same swap works for anything OpenAI-compatible - LangChain, aider, Continue,
-n8n, or your own service. No SDK change, no request-shape change.
+n8n, or your own service. No SDK change, no request-shape change. Optional
+per-request controls (`arbiter_max_cost`, `arbiter_max_latency`,
+`arbiter_no_cache`) are covered in [developers.md](developers.md#3-routing-controls-budget-latency-cache).
 
 ## What a caller gets back
 
@@ -85,9 +89,10 @@ This is the part to understand before exposing Arbiter beyond localhost.
 - **One key, server-side.** Every call Arbiter makes to the runtime - answering,
   the free-model classifier, and the judge - uses the single `GATEWAY_API_KEY`
   from `.env`. All cost lands on the operator's BTL account.
-- **No client auth.** Arbiter does **not** check any `Authorization` header from
-  callers. Whatever key a client sends is ignored. Anyone who can reach the proxy
-  can use it, and they all share one learning brain.
+- **Clients present their own key.** Callers authenticate with an **Arbiter** key
+  (separate from the BTL key) as a Bearer token; the paid and control endpoints
+  reject anything else with `401`. See [Client authentication](#client-authentication)
+  below.
 - **One gateway, many apps.** Multiple applications can point at the same
   Arbiter; they all contribute to and benefit from the same shared, persistent
   policy, which is what makes it get cheaper for everyone over time.

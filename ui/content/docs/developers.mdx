@@ -3,6 +3,7 @@ title: "Developer guide"
 description: "How to call the API, with copy-paste examples."
 ---
 
+
 How to actually call Arbiter. It speaks the OpenAI chat-completions protocol, so
 you keep your OpenAI client and change two things: the base URL, and your key.
 This guide shows the common tasks with copy-paste examples. For the full endpoint
@@ -59,20 +60,29 @@ curl https://YOUR_HOST/v1/chat/completions \
   -d '{"model":"auto","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-## 3. Set a budget (max cost per request)
+## 3. Routing controls (budget, latency, cache)
 
-Cap what a request may cost with `arbiter_max_cost` (USD). Arbiter routes only
-among models whose estimated cost for that request is within the ceiling.
+Three optional, non-standard fields shape how a request is routed. They are all
+stripped before the request reaches the runtime.
 
-Because it is a non-standard field, the OpenAI SDK sends it through
-**`extra_body`**:
+| Field | Effect |
+|-------|--------|
+| `arbiter_max_cost` (USD) | Route only among models whose estimated cost for this request is within the ceiling (falls back to the cheapest if none fit). |
+| `arbiter_max_latency` (seconds) | Drop models whose learned mean latency exceeds the ceiling - for interactive paths. Untimed models pass. |
+| `arbiter_no_cache` (bool) | Bypass the near-duplicate cache for this request (neither read nor write). |
+
+Because they are non-standard, the OpenAI SDK sends them through **`extra_body`**:
 
 ```python
 r = client.chat.completions.create(
     model="auto",
     messages=[{"role": "user", "content": "Summarize this in one line: ..."}],
     max_tokens=200,
-    extra_body={"arbiter_max_cost": 0.0005},   # <- the budget ceiling
+    extra_body={
+        "arbiter_max_cost": 0.0005,      # budget ceiling (USD)
+        "arbiter_max_latency": 2.0,       # only models that answer under ~2s
+        # "arbiter_no_cache": True,       # skip the near-duplicate cache
+    },
 )
 ```
 
@@ -83,17 +93,18 @@ const r = await client.chat.completions.create({
   model: "auto",
   messages: [...],
   max_tokens: 200,
-  // @ts-expect-error non-standard field
+  // @ts-expect-error non-standard fields
   arbiter_max_cost: 0.0005,
+  arbiter_max_latency: 2.0,
 });
 ```
 
-curl (it's just a top-level field in the body):
+curl (they are just top-level fields in the body):
 
 ```bash
 curl https://YOUR_HOST/v1/chat/completions \
   -H "Authorization: Bearer arb_..." -H "Content-Type: application/json" \
-  -d '{"model":"auto","max_tokens":200,"arbiter_max_cost":0.0005,
+  -d '{"model":"auto","max_tokens":200,"arbiter_max_cost":0.0005,"arbiter_max_latency":2.0,
        "messages":[{"role":"user","content":"..."}]}'
 ```
 
@@ -112,7 +123,7 @@ for chunk in stream:
 ```
 
 Routing happens before the first token. After the stream, Arbiter emits one extra
-`event: arbiter` with the final quality, cost and savings (strict clients ignore
+`event: arbiter` with the final model, quality and cost (strict clients ignore
 it). Read the serving model from that event: on streaming responses it is not a
 header, because in-request failover can switch models after the headers are sent.
 
@@ -123,13 +134,34 @@ Non-streaming responses include an `arbiter` object next to the usual fields:
 ```python
 r = client.chat.completions.create(model="auto", messages=[...])
 info = r.model_dump()["arbiter"]
-# info["model"], info["task"], info["cost"], info["saved"],
-# info["budget_met"], info["eligible_models"], ...
+# info["model"]         the model it routed to
+# info["task"]          code / math / structured / factual / open
+# info["difficulty"]    easy or hard (hard prompts route in their own bucket)
+# info["mode"]          explore / exploit / escalate (cascade) / cache
+# info["cost"]          real charge for the call, from the runtime's headers
+# info["latency_ms"]    how long the call took
+# info["cache"]         hit or miss  (+ cache_mode, cache_similarity on a hit)
+# info["failover_from"] models that errored before this one served, or null
+# info["cascaded_from"] cheap model escalated from, if the cascade fired, or null
+# info["eligible_models"], info["budget_met"], ...
 ```
 
 See [api-reference.md](/docs/api-reference#post-v1chatcompletions) for every field.
 
-## 6. Manage your key
+## 6. Send feedback (optional)
+
+A thumbs up/down on an answer is the strongest quality signal the router has - it
+overrides the model judge over a few votes. Target the `task` and `model` from the
+response's `arbiter` block (use the difficulty sub-bucket, e.g. `code:hard`, when
+`difficulty` was `hard`):
+
+```bash
+curl -X POST https://YOUR_HOST/v1/feedback \
+  -H "Authorization: Bearer arb_..." -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-v4-flash","task":"code","rating":"up"}'
+```
+
+## 7. Manage your key
 
 All authenticated with the key itself:
 
@@ -140,7 +172,7 @@ curl -X POST https://YOUR_HOST/v1/key/resume -H "Authorization: Bearer arb_..."
 curl -X POST https://YOUR_HOST/v1/key/revoke -H "Authorization: Bearer arb_..."
 ```
 
-## 7. Errors to handle
+## 8. Errors to handle
 
 | Status | Meaning | What to do |
 |--------|---------|------------|
