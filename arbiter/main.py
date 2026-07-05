@@ -642,6 +642,13 @@ async def reset(request: Request) -> dict:
     return {"status": "reset"}
 
 
+@app.post("/v1/demo/seed", dependencies=[Depends(require_client)])
+async def demo_seed(request: Request) -> dict:
+    """Stage a known, repeatable demo state (see demo.py)."""
+    from . import demo
+    return await demo.seed(request.app.state)
+
+
 # Serve the UI last, so it never shadows the API routes above. If the Next.js
 # app has been exported to ui/out, serve that (dashboard at / and docs at
 # /docs); otherwise fall back to the built-in single-file dashboard.
