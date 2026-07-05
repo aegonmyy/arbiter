@@ -32,7 +32,7 @@ function Hero() {
   const onboarded = useOnboarded();
   const stats = [
     { label: "Calls routed", value: report ? report.calls.toLocaleString() : null, accent: "text-primary" },
-    { label: "Total spend", value: report ? bigMoney(report.actual_spend) : null, accent: "text-secondary" },
+    { label: "Total spend", value: report ? bigMoney(report.actual_spend) : null, accent: "text-primary" },
     { label: "Models in pool", value: overview ? String(overview.pool_size) : null, accent: "text-foreground" },
     { label: "Task types", value: "5", accent: "text-foreground" },
   ];
@@ -43,7 +43,7 @@ function Hero() {
       </div>
       <div className="space-y-4">
         <h1 className="text-5xl font-bold leading-[1.1] tracking-tight sm:text-6xl">
-          The cheapest model that <span className="text-secondary">still gets it right.</span>
+          The cheapest model that <span className="text-primary">still gets it right.</span>
         </h1>
         <p className="mx-auto max-w-xl text-lg leading-relaxed text-muted-foreground">
           Arbiter is a drop-in OpenAI-compatible router. It sends each request to the best model-for-the-money on

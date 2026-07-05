@@ -73,8 +73,11 @@ const OUT_TOKENS = 400;
 export default function Playground() {
   const [prompt, setPrompt] = useState(EXAMPLES[0].prompt);
   const [budgetT, setBudgetT] = useState(100); // slider position 0..100 (100 = highest)
+  const [showModels, setShowModels] = useState(false); // model list collapsed by default
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const [raw, setRaw] = useState<Record<string, unknown> | null>(null);
+  const [view, setView] = useState<"raw" | "summary">("raw"); // raw body by default
   const [error, setError] = useState<string | null>(null);
   const { data: pricing } = usePricing();
 
@@ -89,7 +92,7 @@ export default function Playground() {
 
   async function run() {
     if (!prompt.trim() || loading) return;
-    setLoading(true); setError(null); setResult(null);
+    setLoading(true); setError(null); setResult(null); setRaw(null);
     try {
       const body: Record<string, unknown> = {
         model: "auto", messages: [{ role: "user", content: prompt }], max_tokens: OUT_TOKENS,
@@ -106,6 +109,7 @@ export default function Playground() {
         return;
       }
       const a = data.arbiter ?? {};
+      setRaw(data);
       setResult({ answer: data.choices?.[0]?.message?.content ?? "", ...a });
     } catch {
       setError("Could not reach the router.");
@@ -141,31 +145,40 @@ export default function Playground() {
               onChange={(e) => setBudgetT(Number(e.target.value))}
               aria-label="Max cost per request"
               className="w-full accent-[var(--primary)]" />
-            <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
-              {shown.map((m) => (
-                <div key={m.id} className={cn(
-                  "flex items-center justify-between rounded-lg border px-2.5 py-1 text-[0.72rem]",
-                  m.routable ? "border-secondary/40 bg-secondary/5" : "border-border")}>
-                  <span className="flex items-center gap-2 truncate font-mono">
-                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.routable ? "bg-secondary" : "bg-muted-foreground/40")} />
-                    {m.id}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {m.routable && <span className="rounded bg-secondary/15 px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-wide text-secondary">routes here</span>}
-                    <span className="tabular-nums text-muted-foreground">{money(m.est, 6)}</span>
-                  </span>
-                </div>
-              ))}
-              {fitting.length > shown.length && (
-                <p className="px-1 pt-1 text-[11px] text-muted-foreground">and {fitting.length - shown.length} more...</p>
+            <button type="button" onClick={() => setShowModels((v) => !v)}
+              aria-expanded={showModels}
+              className="flex w-full items-center justify-between gap-2 text-left text-[11px] text-muted-foreground transition-colors hover:text-foreground">
+              <span>
+                {models.length
+                  ? `${fitting.length} of ${models.length} runtime models fit this budget. Arbiter routes among the ${routableFit} it curates.`
+                  : "Loading prices..."}
+              </span>
+              {!!models.length && (
+                <span className="shrink-0 font-medium text-primary">{showModels ? "Hide" : "Show"}</span>
               )}
-              {!models.length && <div className="h-8 rounded-lg bg-muted shimmer" />}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              {models.length
-                ? `${fitting.length} of ${models.length} runtime models fit this budget. Arbiter routes among the ${routableFit} it curates.`
-                : "Loading prices..."}
-            </p>
+            </button>
+            {showModels && (
+              <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
+                {shown.map((m) => (
+                  <div key={m.id} className={cn(
+                    "flex items-center justify-between rounded-lg border px-2.5 py-1 text-[0.72rem]",
+                    m.routable ? "border-secondary/40 bg-secondary/5" : "border-border")}>
+                    <span className="flex items-center gap-2 truncate font-mono">
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.routable ? "bg-secondary" : "bg-muted-foreground/40")} />
+                      {m.id}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {m.routable && <span className="rounded bg-secondary/15 px-1.5 py-0.5 text-[0.58rem] font-semibold uppercase tracking-wide text-secondary">routes here</span>}
+                      <span className="tabular-nums text-muted-foreground">{money(m.est, 6)}</span>
+                    </span>
+                  </div>
+                ))}
+                {fitting.length > shown.length && (
+                  <p className="px-1 pt-1 text-[11px] text-muted-foreground">and {fitting.length - shown.length} more...</p>
+                )}
+                {!models.length && <div className="h-8 rounded-lg bg-muted shimmer" />}
+              </div>
+            )}
           </div>
           <button onClick={run} disabled={loading || !prompt.trim()}
             className="min-h-11 w-full rounded-xl bg-primary px-5 font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
@@ -177,7 +190,18 @@ export default function Playground() {
 
       <Card className="gap-3 py-5" aria-live="polite">
         <CardHeader className="pb-0"><CardTitle>Result</CardTitle></CardHeader>
-        <CardContent className="pt-1">
+        <CardContent className="space-y-3 pt-1">
+          {!loading && result && (
+            <div className="flex w-fit gap-0.5 rounded-lg border border-border p-0.5">
+              {(["raw", "summary"] as const).map((v) => (
+                <button key={v} type="button" onClick={() => setView(v)}
+                  className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                  {v === "raw" ? "Raw response" : "Summary"}
+                </button>
+              ))}
+            </div>
+          )}
           {loading && <div className="h-40 rounded-2xl border border-border bg-muted shimmer" />}
           {!loading && error && (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -188,7 +212,10 @@ export default function Playground() {
           {!loading && !error && !result && (
             <p className="py-10 text-center text-sm text-muted-foreground">Pick an example or write a prompt, then route it.</p>
           )}
-          {!loading && result && (
+          {!loading && result && view === "raw" && (
+            <pre className="max-h-[30rem] overflow-auto whitespace-pre-wrap rounded-2xl border border-border bg-background p-4 font-mono text-xs leading-relaxed">{JSON.stringify(raw, null, 2)}</pre>
+          )}
+          {!loading && result && view === "summary" && (
             <div className="space-y-4">
               <p className="rounded-2xl border border-border bg-background px-4 py-3 text-sm leading-relaxed text-foreground/80">
                 {summarize(result)}

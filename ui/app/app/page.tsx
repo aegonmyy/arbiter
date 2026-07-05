@@ -14,6 +14,12 @@ export default function OverviewPage() {
         simple work. Try it in the Playground.
       </InfoBanner>
       <StatsBar />
+      <InfoBanner storageKey="overview-stats">
+        What these mean: <strong>Calls routed</strong> is how many requests Arbiter has handled;{" "}
+        <strong>Total spend</strong> is what those calls actually cost on the runtime (measured from its real
+        cost headers); <strong>Avg cost / call</strong> is the mean of that per request; and{" "}
+        <strong>Task types learned</strong> is how many kinds of task it has built a routing policy for.
+      </InfoBanner>
       <MiniStats />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
