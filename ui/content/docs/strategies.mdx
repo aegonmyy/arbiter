@@ -295,10 +295,13 @@ everything already learned, only *hard* prompts get a new sub-bucket
 **Problem.** Repeated or lightly-reworded prompts pay full price every time.
 
 **Approach** (`cache.py`). A near-duplicate of a previously well-scored prompt is
-served from cache for free. Matching is local token-set (Jaccard) overlap of the
-normalized prompt - no embeddings, no network - so it tolerates case,
-punctuation, whitespace and word-order differences. Only well-scored answers are
-cached. Embedding-based paraphrase matching is future work.
+served from cache for free. When an embedding provider is configured, matching is
+by **meaning** - cosine similarity of the prompt embeddings - so it catches
+paraphrases worded completely differently. With no provider configured it falls
+back to a purely local token-set (Jaccard) overlap, which still tolerates case,
+punctuation, whitespace and word-order differences with no network call. Only
+well-scored answers are cached. The embedding provider is entirely configuration
+(URL, model and key from the environment), so no specific vendor is baked in.
 
 ## 14. Human feedback and statistical drift
 

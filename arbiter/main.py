@@ -13,6 +13,7 @@ from . import config
 from .auth import require_client
 from .btl import BTLClient, Cost
 from .cache import SemanticCache
+from .embeddings import Embedder
 from .classify import _last_user_text
 from .classifier import classify_smart
 from .difficulty import route_key as difficulty_key
@@ -91,9 +92,14 @@ async def lifespan(app: FastAPI):
     # Models temporarily skipped after an upstream error: {model: until_ts}.
     app.state.quarantine = {}
     # Near-duplicate response cache (in-memory; complements the runtime's exact cache).
-    app.state.cache = SemanticCache()
+    app.state.cache = SemanticCache(semantic_threshold=config.EMBEDDINGS_THRESHOLD)
+    # Optional embedding provider for semantic (meaning-based) cache matching; when
+    # unconfigured the cache falls back to lexical matching.
+    app.state.embedder = Embedder() if config.embeddings_enabled() else None
     yield
     await app.state.btl.aclose()
+    if app.state.embedder:
+        await app.state.embedder.aclose()
 
 
 app = FastAPI(title="Arbiter", version="0.1.0", lifespan=lifespan)
@@ -176,11 +182,17 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
 
     # Near-duplicate cache: if we've already answered a near-identical prompt
     # well, serve that answer for free instead of routing to a model at all. Skip
-    # for streaming and when the caller opts out with arbiter_no_cache.
+    # for streaming and when the caller opts out with arbiter_no_cache. When an
+    # embedding provider is configured we match by meaning (embed once, reused for
+    # a store on a miss); otherwise the cache matches lexically.
     no_cache = bool(payload.pop("arbiter_no_cache", False))
     cache_text = _cache_key(messages)
-    if not payload.get("stream") and not no_cache:
-        hit = request.app.state.cache.lookup(cache_text)
+    cache_on = not payload.get("stream") and not no_cache
+    query_vec = None
+    if cache_on and request.app.state.embedder is not None:
+        query_vec = await request.app.state.embedder.embed(cache_text)
+    if cache_on:
+        hit = request.app.state.cache.lookup(cache_text, vector=query_vec)
         if hit:
             data = hit["data"]
             baseline_cost = policy.baseline_cost(route_key)
@@ -195,9 +207,10 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
             body["arbiter"] = {
                 "task": task.value, "difficulty": difficulty, "cascaded_from": None,
                 "classified_by": classified_by, "model": data["model"], "mode": "cache",
-                "reason": "served from near-duplicate cache", "quality": data["quality"],
-                "quality_reason": "cached answer", "cost": 0.0, "baseline_cost": baseline_cost,
-                "saved": saved, "cache": "hit", "cache_similarity": hit["similarity"],
+                "reason": f"served from {hit['mode']} near-duplicate cache",
+                "quality": data["quality"], "quality_reason": "cached answer",
+                "cost": 0.0, "baseline_cost": baseline_cost, "saved": saved,
+                "cache": "hit", "cache_mode": hit["mode"], "cache_similarity": hit["similarity"],
                 "failover_from": None,
             }
             return body
@@ -374,12 +387,12 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
     }
 
     # Cache this answer for future near-duplicates, but only if it scored well, so
-    # a weak answer is never served repeatedly.
-    if not no_cache and quality.value >= CASCADE_MIN:
+    # a weak answer is never served repeatedly. Reuse the query embedding.
+    if cache_on and quality.value >= CASCADE_MIN:
         stored = copy.deepcopy({k: v for k, v in body.items() if k != "arbiter"})
         request.app.state.cache.store(cache_text, {
             "body": stored, "model": decision.model, "quality": round(quality.value, 3),
-        })
+        }, vector=query_vec)
     return body
 
 
@@ -590,6 +603,7 @@ async def overview(request: Request) -> dict:
         "alerts": st.policy.alert_count(),
         "active_price_overrides": st.price_mult,
         "cache_entries": len(st.cache),
+        "cache_mode": "semantic" if st.embedder is not None else "lexical",
     }
 
 

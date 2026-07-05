@@ -297,11 +297,16 @@ prompts get a new sub-bucket (`math:hard`); easy prompts keep the base bucket.
 **Problem.** Repeated or lightly-reworded prompts pay full price every time.
 
 **Approach** (`cache.py`). A near-duplicate of a previously well-scored prompt is
-served from cache for free. Matching is local token-set (Jaccard) overlap of the
-normalized prompt - no embeddings, no network - so it tolerates case,
-punctuation, whitespace and word-order differences. Only well-scored answers are
-cached, so a bad answer is never served repeatedly. This complements the
-runtime's byte-exact cache; embedding-based paraphrase matching is future work.
+served from cache for free. When an embedding provider is configured, matching is
+by **meaning** - cosine similarity of the prompt embeddings - so it catches
+paraphrases worded completely differently (threshold calibrated so paraphrases
+match while a different question on the same topic does not). With no provider
+configured it falls back to a purely local token-set (Jaccard) overlap, which
+still tolerates case, punctuation, whitespace and word-order differences with no
+network call. Either way only well-scored answers are cached, so a bad answer is
+never served repeatedly. This complements the runtime's byte-exact cache. The
+embedding provider is entirely configuration (URL, model and key from the
+environment), so no specific vendor is baked into Arbiter.
 
 ## 14. Human feedback - the strongest quality signal, and drift as statistics
 

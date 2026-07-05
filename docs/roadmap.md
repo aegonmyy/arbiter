@@ -34,8 +34,9 @@ What was on the plan and is now built:
 - ✅ **Per-prompt difficulty routing** — hard prompts route in their own
   sub-bucket, paired with an in-request **confidence cascade** (try cheap,
   escalate only when the answer fails its check).
-- ✅ **Semantic caching** — a near-duplicate prompt is served from cache for free
-  (lexical similarity today; embeddings are the upgrade below).
+- ✅ **Semantic caching** — a near-duplicate prompt is served from cache for free.
+  Matches by embedding similarity (meaning) when an embedding provider is
+  configured, falling back to local lexical similarity otherwise.
 - ✅ **Statistical drift detection** — price re-exploration now fires on a move
   that is either large *or* statistically significant against a model's own
   price history, so it catches small consistent shifts and false-alarms less.
@@ -55,11 +56,9 @@ What was on the plan and is now built:
 
 - **Stronger quality signals** *(L)* — the biggest remaining lever. Today code is
   only *parsed*, not run. Add **sandboxed code execution** against tests
-  (needs a real sandbox — a security decision) and **embedding-based grading**.
-  The 👍/👎 feedback loop above is the first, shipped piece of this.
-- **Embedding-based semantic cache** *(M)* — replace the lexical near-duplicate
-  match with embeddings so true paraphrases (different words, same meaning) also
-  hit, once an embeddings route on the runtime is confirmed.
+  (needs a real sandbox — a security decision) and **embedding-based grading**
+  (reuse the embedding provider to score answers against references). The 👍/👎
+  feedback loop above is the first, shipped piece of this.
 - **Warm-start refinement** *(S)* — source the priors from a maintained benchmark
   table rather than hand-set values, and decay them per-task by observed variance.
 

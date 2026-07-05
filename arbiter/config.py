@@ -31,6 +31,22 @@ BASELINE_CONTEXT = int(os.environ.get("BASELINE_CONTEXT", "128000"))
 
 REQUEST_TIMEOUT = float(os.environ.get("REQUEST_TIMEOUT", "120"))
 
+# Optional external embedding API for the semantic cache. All provider specifics
+# (URL, model, key) come from the environment, so no vendor is baked into the
+# source. When the URL and key are both set, the cache matches by embedding
+# similarity; otherwise it falls back to lexical near-duplicate matching.
+EMBEDDINGS_API_URL = os.environ.get("EMBEDDINGS_API_URL", "")
+EMBEDDINGS_MODEL = os.environ.get("EMBEDDINGS_MODEL", "")
+EMBEDDINGS_API_KEY = os.environ.get("EMBEDDINGS_API_KEY", "")
+# Cosine similarity at or above which two prompts count as the same request.
+# Calibrated so paraphrases (~0.82-0.94) hit while a different question about the
+# same topic (~0.70) and unrelated prompts (~0.47) do not.
+EMBEDDINGS_THRESHOLD = float(os.environ.get("EMBEDDINGS_THRESHOLD", "0.80"))
+
+
+def embeddings_enabled() -> bool:
+    return bool(EMBEDDINGS_API_URL and EMBEDDINGS_API_KEY)
+
 # Client API keys that callers must present. Comma-separated. When empty, client
 # auth is disabled and the proxy is open (the current default).
 ARBITER_API_KEYS = frozenset(

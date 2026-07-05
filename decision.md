@@ -9,6 +9,32 @@ Newest entries at the top.
 
 ---
 
+## Semantic cache is now embedding-based (external provider via env)
+
+**Done.** The near-duplicate cache now matches by **meaning** (cosine similarity
+of prompt embeddings) when an embedding provider is configured, falling back to
+lexical matching otherwise. Verified live end-to-end: a reworded paraphrase
+("Name the capital city of France, please") scored 0.824 cosine against a stored
+prompt and was served from cache for free — a match lexical overlap (~0.5) would
+have missed. An unrelated prompt correctly missed. Threshold calibrated to
+`0.80` (paraphrases ~0.82-0.94 hit; a different question on the same topic ~0.70
+and unrelated ~0.47 do not).
+
+**Provider is configuration, not code.** URL, model and key all come from the
+environment (`EMBEDDINGS_API_URL`, `EMBEDDINGS_MODEL`, `EMBEDDINGS_API_KEY`), so
+no vendor is named anywhere in tracked source or docs. The key lives only in the
+git-ignored `.env`. **Deploy step:** set those three env vars on Railway or the
+live instance stays in lexical mode (safe fallback, just not semantic).
+
+**NEEDS YOU (security):** the embedding API key was shared in plaintext in chat.
+Restrict it (lock to the embeddings API in the provider console) and ideally
+rotate it. It is not in git, but treat it as exposed.
+
+**Fake embedder in tests** — the suite never calls the real API; `conftest`
+injects a deterministic `FakeEmbedder`, and the default test embedder is off.
+
+---
+
 ## Batch complete — summary and status
 
 All nine features landed as clean local commits (no Claude co-author), each with

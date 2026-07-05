@@ -59,17 +59,20 @@ def make_client(monkeypatch, tmp_path):
     from arbiter import config
     monkeypatch.setattr(config, "ARBITER_API_KEYS", frozenset({"op-key"}))
 
-    def _build(fake: FakeBTL | None = None):
+    def _build(fake: FakeBTL | None = None, embedder=None):
         from arbiter.main import app
         client = TestClient(app)
         client.__enter__()  # run lifespan startup
         app.state.btl = fake or FakeBTL()
+        # Never let tests hit a real embedding API: default to lexical (None),
+        # or a caller-supplied fake for semantic-cache tests.
+        app.state.embedder = embedder
         return client, app
 
     built: list[TestClient] = []
 
-    def factory(fake=None):
-        client, app = _build(fake)
+    def factory(fake=None, embedder=None):
+        client, app = _build(fake, embedder)
         built.append(client)
         return client, app
 
@@ -79,6 +82,20 @@ def make_client(monkeypatch, tmp_path):
 
 
 AUTH = {"Authorization": "Bearer op-key"}
+
+
+class FakeEmbedder:
+    """Deterministic stand-in for the embedding provider (no network). `mapping`
+    is a callable text -> vector."""
+
+    def __init__(self, mapping):
+        self.mapping = mapping
+
+    async def embed(self, text):
+        return self.mapping(text)
+
+    async def aclose(self):
+        pass
 
 
 def chat_body(text="hello there, tell me a story", **extra):

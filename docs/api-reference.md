@@ -110,6 +110,7 @@ describing the decision:
 | `max_latency` | The latency ceiling, if `arbiter_max_latency` was set (else `null`). |
 | `latency_capped` | Whether the latency ceiling removed any model. |
 | `cache` | `hit` if served from the near-duplicate cache, else `miss`. |
+| `cache_mode` | On a hit, how it matched: `semantic` (embedding similarity) or `lexical` (token overlap). |
 | `cache_similarity` | On a hit, the similarity (0..1) to the cached prompt. |
 | `failover_from` | Models that errored before this one served, or `null` (in-request failover). |
 
@@ -242,7 +243,8 @@ Summary stats for the dashboard beyond raw savings.
   "classifier": { "rules": 2, "model": 2, "model-fallback": 0 },
   "alerts": 0,
   "active_price_overrides": {},
-  "cache_entries": 3
+  "cache_entries": 3,
+  "cache_mode": "semantic"
 }
 ```
 
@@ -253,6 +255,7 @@ Summary stats for the dashboard beyond raw savings.
 | `alerts` | Number of price-shift events recorded. |
 | `active_price_overrides` | Any demo multipliers currently applied. |
 | `cache_entries` | Entries currently held in the near-duplicate cache. |
+| `cache_mode` | `semantic` if an embedding provider is configured, else `lexical`. |
 
 ---
 
