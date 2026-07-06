@@ -308,6 +308,13 @@ never served repeatedly. This complements the runtime's byte-exact cache. The
 embedding provider is entirely configuration (URL, model and key from the
 environment), so no specific vendor is baked into Arbiter.
 
+**Where meaning-based matching is safe.** Embedding similarity is used only for
+open-ended and factual tasks, where two prompts that *mean* the same thing want
+the same answer. For code, math and structured tasks a small wording change - a
+different number or constraint - changes the correct answer, so those use lexical
+near-identity instead. Otherwise "calculate 37 * 24" could be served the cached
+answer to "calculate 89 * 11".
+
 ## 14. Human feedback - the strongest quality signal, and drift as statistics
 
 **Problem.** Objective checks and the judge are proxies; a human thumbs-down is

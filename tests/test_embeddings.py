@@ -49,6 +49,33 @@ def test_paraphrase_hits_semantically_via_endpoint(make_client):
     assert len(fake.calls) == calls_after_first  # no new upstream call
 
 
+def test_objective_tasks_do_not_semantically_over_match(make_client):
+    # Even if the embedder maps two different math prompts to the same vector,
+    # they must not cache-collide (different numbers = different answers). Math
+    # falls back to lexical, so the differently-worded prompt is a miss.
+    everything_same = FakeEmbedder(lambda text: [1.0, 0.0])
+    fake = FakeBTL()
+    client, app = make_client(fake, embedder=everything_same)
+
+    first = client.post("/v1/chat/completions",
+                        json=chat_body("Calculate 37 times 24"), headers=AUTH)
+    assert first.json()["arbiter"]["cache"] == "miss"
+    second = client.post("/v1/chat/completions",
+                         json=chat_body("Calculate 89 times 11"), headers=AUTH)
+    assert second.json()["arbiter"]["cache"] == "miss"   # not a false semantic hit
+
+
+def test_factual_paraphrase_still_hits_with_the_gate(make_client):
+    # Factual questions keep semantic matching (meaning determines the answer).
+    fake = FakeBTL()
+    client, app = make_client(fake, embedder=FakeEmbedder(_france_mapping))
+    client.post("/v1/chat/completions",
+                json=chat_body("What is the capital of France"), headers=AUTH)
+    r = client.post("/v1/chat/completions",
+                    json=chat_body("Name the capital city of France"), headers=AUTH)
+    assert r.json()["arbiter"]["cache"] == "hit"
+
+
 def test_overview_reports_cache_mode(make_client):
     fake = FakeBTL()
     # Lexical when no embedder.

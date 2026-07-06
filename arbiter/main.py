@@ -182,14 +182,19 @@ async def chat_completions(request: Request, client_key: str = Depends(require_c
 
     # Near-duplicate cache: if we've already answered a near-identical prompt
     # well, serve that answer for free instead of routing to a model at all. Skip
-    # for streaming and when the caller opts out with arbiter_no_cache. When an
-    # embedding provider is configured we match by meaning (embed once, reused for
-    # a store on a miss); otherwise the cache matches lexically.
+    # for streaming and when the caller opts out with arbiter_no_cache.
+    #
+    # Meaning-based (embedding) matching is only safe where meaning determines the
+    # answer - open-ended and factual questions. For code/math/structured a small
+    # wording change (a different number or constraint) changes the correct answer,
+    # so those fall back to lexical near-identity, which won't serve one templated
+    # prompt's answer for a different one.
     no_cache = bool(payload.pop("arbiter_no_cache", False))
     cache_text = _cache_key(messages)
     cache_on = not payload.get("stream") and not no_cache
+    semantic_ok = task.value in ("factual", "open")
     query_vec = None
-    if cache_on and request.app.state.embedder is not None:
+    if cache_on and semantic_ok and request.app.state.embedder is not None:
         query_vec = await request.app.state.embedder.embed(cache_text)
     if cache_on:
         hit = request.app.state.cache.lookup(cache_text, vector=query_vec)

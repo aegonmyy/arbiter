@@ -303,6 +303,11 @@ punctuation, whitespace and word-order differences with no network call. Only
 well-scored answers are cached. The embedding provider is entirely configuration
 (URL, model and key from the environment), so no specific vendor is baked in.
 
+Meaning-based matching is used only for open-ended and factual tasks, where two
+prompts that mean the same thing want the same answer. Code, math and structured
+tasks use lexical near-identity, so "calculate 37 * 24" is never served the cached
+answer to "calculate 89 * 11".
+
 ## 14. Human feedback and statistical drift
 
 **Approach.** `POST /v1/feedback` folds thumbs up/down into routing quality with enough
